@@ -2,7 +2,7 @@
   "expo": {
     "name": "sub2api-mobile",
     "slug": "sub2api-mobile",
-    "owner": "ckken",
+    "owner": "hl95599",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./icons/ios/AppIcon.appiconset/icon-1024.png",
@@ -15,14 +15,14 @@
     "ios": {
       "supportsTablet": true,
       "icon": "./icons/ios/AppIcon.appiconset/icon-1024.png",
-      "bundleIdentifier": "com.ppx.sub2apimobile",
+      "bundleIdentifier": "com.hl95599.sub2apimobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "icon": "./icons/android/playstore-icon.png",
-      "package": "com.ppx.sub2apimobile",
+      "package": "com.hl95599.sub2apimobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./icons/android/playstore-icon.png"
@@ -39,14 +39,14 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "acaedd05-5a2a-4843-a648-e025c08ce7b3"
+        "projectId": "fa565c0a-5e7a-49a6-96c1-b03644b1133c"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/acaedd05-5a2a-4843-a648-e025c08ce7b3"
+      "url": "https://u.expo.dev/fa565c0a-5e7a-49a6-96c1-b03644b1133c"
     },
     "scheme": "sub2apimobile"
   }
