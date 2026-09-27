@@ -320,11 +320,11 @@ export default function MonitorScreen() {
                 detail={`输出 ${formatTokenDisplay(rangeKey === '24h' ? selectedOutputTotal || stats?.today_output_tokens : selectedOutputTotal)}`}
               />
               <StatCard
-                title={`${rangeTitle} 成本`}
-                value={formatMoney(rangeKey === '24h' ? selectedCostTotal || stats?.today_cost : selectedCostTotal)}
+                title={config.backend === 'codex-proxy-rs' ? '总计费账单' : `${rangeTitle} 成本`}
+                value={formatMoney(config.backend === 'codex-proxy-rs' ? (stats?.total_cost ?? 0) : (rangeKey === '24h' ? selectedCostTotal || stats?.today_cost : selectedCostTotal))}
                 detail={
                   config.backend === 'codex-proxy-rs'
-                    ? (stats?.total_cost ? `总账单 ${formatMoney(stats.total_cost)}` : undefined)
+                    ? '网关累计美元消费'
                     : (stats?.tpm ? `TPM ${formatNumber(stats.tpm)}` : undefined)
                 }
               />
@@ -372,7 +372,7 @@ export default function MonitorScreen() {
               <LineTrendChart title="请求趋势" subtitle="当前时间范围内的请求变化趋势" points={requestPoints} color="#1d5f55" formatValue={formatCompactNumber} />
             ) : null}
 
-            {costPoints.length > 1 ? (
+            {costPoints.length > 1 && costPoints.some((p) => p.value > 0) ? (
               <LineTrendChart title="成本趋势" subtitle="当前时间范围内的成本变化趋势" points={costPoints} color="#7651c8" formatValue={formatMoney} />
             ) : null}
 
