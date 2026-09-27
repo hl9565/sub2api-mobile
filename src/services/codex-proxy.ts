@@ -5,6 +5,8 @@ import type {
   AdminAccountExtra,
   AdminGroup,
   AdminSettings,
+  CodexCostEfficiency,
+  CodexPerformanceInsights,
   CodexUsageSummary,
   DashboardModelStats,
   DashboardStats,
@@ -222,13 +224,62 @@ function getCodexRangeTime(rangeKey: '24h' | '7d' | '30d' = '7d') {
     d.setHours(0, 0, 0, 0);
     startTime = d.toISOString();
   } else {
-    const d = new Date(now);
-    d.setHours(0, 0, 0, 0);
+    const d = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     startTime = d.toISOString();
   }
 
   return { startTime, endTime };
 }
+
+type CodexOverviewResponse = {
+  granularity?: string;
+  health?: {
+    totalRequests?: number;
+    successRequests?: number;
+    failedRequests?: number;
+    points?: Array<{
+      bucket?: string;
+      totalRequests?: number;
+      successRequests?: number;
+      failedRequests?: number;
+    }>;
+  };
+  performance?: {
+    latencyP50Ms?: number | null;
+    latencyP95Ms?: number | null;
+    latencyP99Ms?: number | null;
+    firstTokenP50Ms?: number | null;
+    firstTokenP95Ms?: number | null;
+    outputThroughputP50?: number | null;
+  };
+  cost?: {
+    estimatedCost?: number | null;
+    standardCost?: number | null;
+    noCacheCost?: number | null;
+    cacheSavings?: number | null;
+    tierPremium?: number | null;
+    costPerSuccessfulRequest?: number | null;
+    coverage?: {
+      known?: number;
+      partial?: number;
+      unknown?: number;
+      notBillable?: number;
+    };
+    points?: Array<{
+      bucket?: string;
+      label?: string;
+      estimatedCost?: number | null;
+      noCacheCost?: number | null;
+      cacheSavings?: number | null;
+      cachedTokenRate?: number;
+      cacheHitRequestRate?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      cachedTokens?: number;
+      totalTokens?: number;
+    }>;
+  };
+};
 
 export async function getCodexProxyDashboardStats(params?: {
   rangeKey?: '24h' | '7d' | '30d';
@@ -240,8 +291,13 @@ export async function getCodexProxyDashboardStats(params?: {
   const { startTime, endTime } = getCodexRangeTime(params?.rangeKey);
   const usageQuery = buildQuery({ startTime, endTime });
   const usageSummaryPromise = adminFetch<CodexUsageSummary>(`/api/admin/usage/records/summary${usageQuery}`).catch(() => null);
+  const overviewPromise = adminFetch<CodexOverviewResponse>(`/api/admin/usage/insights/overview${usageQuery}`).catch(() => null);
 
-  const [summary, usageSummary] = await Promise.all([summaryPromise, usageSummaryPromise]);
+  const [summary, usageSummary, overview] = await Promise.all([
+    summaryPromise,
+    usageSummaryPromise,
+    overviewPromise,
+  ]);
 
   const cards = summary.cards ?? {};
   const credentials = cards.credentials ?? {};
@@ -254,6 +310,19 @@ export async function getCodexProxyDashboardStats(params?: {
   const inputTokensNum = parseCompactNumber(usageSummary?.inputTokens) ?? 0;
   const outputTokensNum = parseCompactNumber(usageSummary?.outputTokens) ?? 0;
   const cachedTokensNum = parseCompactNumber(usageSummary?.cachedTokens) ?? 0;
+
+  const costEfficiency: CodexCostEfficiency | undefined = overview?.cost ? {
+    estimatedCost: overview.cost.estimatedCost ?? null,
+    noCacheCost: overview.cost.noCacheCost ?? null,
+    cacheSavings: overview.cost.cacheSavings ?? null,
+    costPerSuccessfulRequest: overview.cost.costPerSuccessfulRequest ?? null,
+  } : undefined;
+
+  const performance: CodexPerformanceInsights | undefined = overview?.performance ? {
+    latencyP50Ms: overview.performance.latencyP50Ms ?? null,
+    latencyP95Ms: overview.performance.latencyP95Ms ?? null,
+    latencyP99Ms: overview.performance.latencyP99Ms ?? null,
+  } : undefined;
 
   return {
     total_users: 0,
@@ -268,7 +337,7 @@ export async function getCodexProxyDashboardStats(params?: {
     total_cost: parseMoney(tokens.totalBillingAmountUsd),
     total_tokens: totalTokensNum,
     today_requests: totalRequestsNum,
-    today_cost: 0,
+    today_cost: overview?.cost?.estimatedCost ?? 0,
     today_tokens: totalTokensNum,
     today_input_tokens: inputTokensNum,
     today_output_tokens: outputTokensNum,
@@ -276,6 +345,8 @@ export async function getCodexProxyDashboardStats(params?: {
     rpm: 0,
     tpm: 0,
     codex_usage_summary: usageSummary ?? undefined,
+    codex_cost_efficiency: costEfficiency,
+    codex_performance: performance,
   } satisfies DashboardStats;
 }
 
@@ -288,28 +359,7 @@ export async function getCodexProxyDashboardTrend(params?: {
 
   try {
     const overviewQuery = buildQuery({ startTime, endTime });
-    const overview = await adminFetch<{
-      granularity?: string;
-      health?: {
-        points?: Array<{
-          bucket?: string;
-          totalRequests?: number;
-          successRequests?: number;
-          failedRequests?: number;
-        }>;
-      };
-      cost?: {
-        points?: Array<{
-          bucket?: string;
-          label?: string;
-          inputTokens?: number;
-          outputTokens?: number;
-          cachedTokens?: number;
-          totalTokens?: number;
-          estimatedCost?: number;
-        }>;
-      };
-    }>(`/api/admin/usage/insights/overview${overviewQuery}`);
+    const overview = await adminFetch<CodexOverviewResponse>(`/api/admin/usage/insights/overview${overviewQuery}`);
 
     const costPoints = overview.cost?.points ?? [];
     const healthPoints = overview.health?.points ?? [];

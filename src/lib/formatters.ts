@@ -84,3 +84,18 @@ export function formatPointLabel(value: string, rangeKey: string) {
   return `${month}-${day}`;
 }
 
+export function formatLatencyMs(ms?: number | null) {
+  if (ms == null || Number.isNaN(ms)) return '--';
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
+  return `${(ms / 60_000).toFixed(1)} min`;
+}
+
+export function formatMoneyPrecise(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value) || value == null) return '--';
+  if (value > 0 && value < 0.01) {
+    return `$${value.toFixed(4)}`;
+  }
+  return `$${value.toFixed(2)}`;
+}
+

@@ -27,6 +27,19 @@ export type CodexUsageSummary = {
   averageLatencyMs?: string;
 };
 
+export type CodexCostEfficiency = {
+  estimatedCost?: number | null;
+  noCacheCost?: number | null;
+  cacheSavings?: number | null;
+  costPerSuccessfulRequest?: number | null;
+};
+
+export type CodexPerformanceInsights = {
+  latencyP50Ms?: number | null;
+  latencyP95Ms?: number | null;
+  latencyP99Ms?: number | null;
+};
+
 export type DashboardStats = {
   total_users: number;
   today_new_users: number;
@@ -48,6 +61,8 @@ export type DashboardStats = {
   rpm: number;
   tpm: number;
   codex_usage_summary?: CodexUsageSummary;
+  codex_cost_efficiency?: CodexCostEfficiency;
+  codex_performance?: CodexPerformanceInsights;
 };
 
 export type TrendPoint = {
