@@ -135,6 +135,18 @@ function parseMoney(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseFlexibleNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^0-9.-]/g, '');
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+}
+
 function getUsageCost(account: CodexAccount) {
   return (account.usage.costs ?? []).reduce((total, cost) => total + parseMoney(cost.estimatedAmount), 0);
 }
@@ -312,17 +324,19 @@ export async function getCodexProxyDashboardStats(params?: {
   const cachedTokensNum = parseCompactNumber(usageSummary?.cachedTokens) ?? 0;
 
   const costEfficiency: CodexCostEfficiency | undefined = overview?.cost ? {
-    estimatedCost: overview.cost.estimatedCost ?? null,
-    noCacheCost: overview.cost.noCacheCost ?? null,
-    cacheSavings: overview.cost.cacheSavings ?? null,
-    costPerSuccessfulRequest: overview.cost.costPerSuccessfulRequest ?? null,
+    estimatedCost: parseFlexibleNumber(overview.cost.estimatedCost),
+    noCacheCost: parseFlexibleNumber(overview.cost.noCacheCost),
+    cacheSavings: parseFlexibleNumber(overview.cost.cacheSavings),
+    costPerSuccessfulRequest: parseFlexibleNumber(overview.cost.costPerSuccessfulRequest),
   } : undefined;
 
   const performance: CodexPerformanceInsights | undefined = overview?.performance ? {
-    latencyP50Ms: overview.performance.latencyP50Ms ?? null,
-    latencyP95Ms: overview.performance.latencyP95Ms ?? null,
-    latencyP99Ms: overview.performance.latencyP99Ms ?? null,
+    latencyP50Ms: parseFlexibleNumber(overview.performance.latencyP50Ms),
+    latencyP95Ms: parseFlexibleNumber(overview.performance.latencyP95Ms),
+    latencyP99Ms: parseFlexibleNumber(overview.performance.latencyP99Ms),
   } : undefined;
+
+  const estimatedCost = parseFlexibleNumber(overview?.cost?.estimatedCost) ?? 0;
 
   return {
     total_users: 0,
@@ -337,7 +351,7 @@ export async function getCodexProxyDashboardStats(params?: {
     total_cost: parseMoney(tokens.totalBillingAmountUsd),
     total_tokens: totalTokensNum,
     today_requests: totalRequestsNum,
-    today_cost: overview?.cost?.estimatedCost ?? 0,
+    today_cost: estimatedCost,
     today_tokens: totalTokensNum,
     today_input_tokens: inputTokensNum,
     today_output_tokens: outputTokensNum,
@@ -373,11 +387,11 @@ export async function getCodexProxyDashboardTrend(params?: {
         const hp = healthPoints[i];
         const date = cp?.bucket ?? hp?.bucket ?? cp?.label ?? '';
         const requests = hp?.totalRequests ?? hp?.successRequests ?? 0;
-        const input_tokens = cp?.inputTokens ?? 0;
-        const output_tokens = cp?.outputTokens ?? 0;
-        const cache_read_tokens = cp?.cachedTokens ?? 0;
-        const total_tokens = cp?.totalTokens ?? (input_tokens + output_tokens);
-        const cost = cp?.estimatedCost ?? 0;
+        const input_tokens = parseFlexibleNumber(cp?.inputTokens) ?? 0;
+        const output_tokens = parseFlexibleNumber(cp?.outputTokens) ?? 0;
+        const cache_read_tokens = parseFlexibleNumber(cp?.cachedTokens) ?? 0;
+        const total_tokens = parseFlexibleNumber(cp?.totalTokens) ?? (input_tokens + output_tokens);
+        const cost = parseFlexibleNumber(cp?.estimatedCost) ?? 0;
 
         points.push({
           date,

@@ -47,18 +47,31 @@ export async function adminFetch<T>(
     headers,
   });
 
-  let json: ApiEnvelope<T>;
   const rawText = await response.text();
+  let json: any;
 
   try {
-    json = JSON.parse(rawText) as ApiEnvelope<T>;
+    json = JSON.parse(rawText);
   } catch {
     throw new Error('INVALID_SERVER_RESPONSE');
   }
 
-  if (!response.ok || (json.code !== 0 && json.code !== 200)) {
-    throw new Error(json.reason || json.message || 'REQUEST_FAILED');
+  if (!response.ok) {
+    throw new Error(json?.reason || json?.message || json?.error || `REQUEST_FAILED_${response.status}`);
   }
 
-  return json.data as T;
+  // Handle envelope responses: { code: 0 | 200, data: ... }
+  if (json && typeof json === 'object') {
+    if (typeof json.code === 'number') {
+      if (json.code !== 0 && json.code !== 200) {
+        throw new Error(json.reason || json.message || 'REQUEST_FAILED');
+      }
+      if ('data' in json) {
+        return json.data as T;
+      }
+    }
+  }
+
+  // Raw JSON response without envelope
+  return json as T;
 }

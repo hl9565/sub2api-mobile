@@ -358,7 +358,7 @@ export default function MonitorScreen() {
               </View>
             )}
 
-            {isCodex && stats?.codex_cost_efficiency && stats.codex_cost_efficiency.estimatedCost != null ? (
+            {isCodex && (stats?.codex_cost_efficiency || stats?.codex_performance) ? (
               <Section
                 title="成本与效益估算"
                 subtitle="按官方 API 费率测算实际成本与缓存节省"
@@ -377,17 +377,17 @@ export default function MonitorScreen() {
                     <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
                       <Text style={{ fontSize: 11, color: '#8a8072' }}>实际估算</Text>
                       <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency.estimatedCost)}
+                        {formatMoneyPrecise(stats.codex_cost_efficiency?.estimatedCost)}
                       </Text>
                       <Text style={{ marginTop: 4, fontSize: 11, color: colors.subtext }}>含输入输出与缓存</Text>
                     </View>
                     <View style={{ flex: 1, backgroundColor: colors.successBg, borderRadius: 14, padding: 12 }}>
                       <Text style={{ fontSize: 11, color: colors.success, fontWeight: '600' }}>缓存节省</Text>
                       <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.success }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency.cacheSavings)}
+                        {formatMoneyPrecise(stats.codex_cost_efficiency?.cacheSavings)}
                       </Text>
                       <Text style={{ marginTop: 4, fontSize: 11, color: colors.success }}>
-                        {stats.codex_cost_efficiency.noCacheCost && stats.codex_cost_efficiency.cacheSavings != null && stats.codex_cost_efficiency.noCacheCost > 0
+                        {stats.codex_cost_efficiency?.noCacheCost && stats.codex_cost_efficiency.cacheSavings != null && stats.codex_cost_efficiency.noCacheCost > 0
                           ? `节省 ${((stats.codex_cost_efficiency.cacheSavings / stats.codex_cost_efficiency.noCacheCost) * 100).toFixed(1)}%`
                           : '节省比例'}
                       </Text>
@@ -397,14 +397,14 @@ export default function MonitorScreen() {
                     <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
                       <Text style={{ fontSize: 11, color: '#8a8072' }}>无缓存预估</Text>
                       <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency.noCacheCost)}
+                        {formatMoneyPrecise(stats.codex_cost_efficiency?.noCacheCost)}
                       </Text>
                       <Text style={{ marginTop: 4, fontSize: 11, color: colors.subtext }}>若无缓存时的总成本</Text>
                     </View>
                     <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
                       <Text style={{ fontSize: 11, color: '#8a8072' }}>单请求均价</Text>
                       <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency.costPerSuccessfulRequest)}
+                        {formatMoneyPrecise(stats.codex_cost_efficiency?.costPerSuccessfulRequest)}
                       </Text>
                       <Text style={{ marginTop: 4, fontSize: 11, color: colors.subtext }}>每次成功请求成本</Text>
                     </View>
