@@ -45,6 +45,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="users"
         options={{
+          href: config.backend === 'codex-proxy-rs' ? null : undefined,
           title: '用户',
           tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}

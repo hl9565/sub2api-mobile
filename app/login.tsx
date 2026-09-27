@@ -9,11 +9,13 @@ import { z } from 'zod';
 import { getAdminSettings, getDashboardStats } from '@/src/services/admin';
 import { queryClient } from '@/src/lib/query-client';
 import { adminConfigState, hasAuthenticatedAdminSession, saveAdminConfig } from '@/src/store/admin-config';
+import type { AdminBackend } from '@/src/types/admin';
 
 const { useSnapshot } = require('valtio/react');
 
 const schema = z
   .object({
+    backend: z.enum(['sub2api', 'codex-proxy-rs']),
     baseUrl: z.string().min(1, '请输入服务器地址'),
     adminApiKey: z.string(),
   })
@@ -60,6 +62,7 @@ export default function LoginScreen() {
   const { control, handleSubmit, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      backend: config.backend,
       baseUrl: config.baseUrl,
       adminApiKey: config.adminApiKey,
     },
@@ -84,6 +87,39 @@ export default function LoginScreen() {
           </View>
 
           <View style={{ backgroundColor: colors.card, borderRadius: 22, padding: 18, gap: 16 }}>
+            <View>
+              <Text style={{ marginBottom: 8, fontSize: 12, color: colors.subtext }}>服务类型</Text>
+              <Controller
+                control={control}
+                name="backend"
+                render={({ field: { onChange, value } }) => (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {([
+                      ['sub2api', 'Sub2API'],
+                      ['codex-proxy-rs', 'Codex Proxy RS'],
+                    ] as const).map(([key, label]) => {
+                      const active = value === key;
+                      return (
+                        <Pressable
+                          key={key}
+                          onPress={() => onChange(key as AdminBackend)}
+                          style={{
+                            flex: 1,
+                            borderRadius: 14,
+                            paddingVertical: 11,
+                            alignItems: 'center',
+                            backgroundColor: active ? colors.primary : colors.mutedCard,
+                          }}
+                        >
+                          <Text style={{ color: active ? '#fff' : colors.text, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              />
+            </View>
+
             <View>
               <Text style={{ marginBottom: 8, fontSize: 12, color: colors.subtext }}>服务器地址</Text>
               <Controller

@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, Search, ShieldCheck, ShieldOff } from 'lucide-react-native';
+import { KeyRound, RefreshCw, Search, ShieldCheck, ShieldOff } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 import type { Edge } from 'react-native-safe-area-context';
@@ -8,8 +8,15 @@ import { ListCard } from '@/src/components/list-card';
 import { ScreenShell } from '@/src/components/screen-shell';
 import { useDebouncedValue } from '@/src/hooks/use-debounced-value';
 import { formatTokenValue } from '@/src/lib/formatters';
-import { getAccountTodayStats, listAccounts, setAccountSchedulable, testAccount } from '@/src/services/admin';
-import type { AdminAccount } from '@/src/types/admin';
+import {
+  getAccountTodayStats,
+  listAccounts,
+  refreshOpenAIAccountQuota,
+  setAccountSchedulable,
+  testAccount,
+} from '@/src/services/admin';
+import type { AdminAccount, AdminResourceId } from '@/src/types/admin';
+import { adminConfigState } from '@/src/store/admin-config';
 
 type AccountStatusFilter = 'all' | 'active' | 'paused' | 'error';
 type UsageSort = 'usage-desc' | 'usage-asc';
@@ -25,11 +32,94 @@ type AccountTodaySummary = {
   cost: number;
 };
 
+type AccountQuotaWindow = {
+  label: '5h' | '7d' | '30d';
+  usedPercent?: number;
+  resetAfterSeconds?: number;
+  resetAt?: string;
+  resetLabel?: string;
+};
+
 function formatTime(value?: string | null) {
   if (!value) return '--';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '--';
   return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function readExtraNumber(account: AdminAccount, key: string) {
+  const value = account.extra?.[key];
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function getAccountQuota(account: AdminAccount): AccountQuotaWindow[] {
+  const isOAuthAccount =
+    (account.platform.toLowerCase() === 'openai' && account.type.toLowerCase() === 'oauth')
+    || ['oauth', 'oauth_credentials'].includes(account.type.toLowerCase())
+    || account.platform.toLowerCase() === 'codex'
+    || account.extra?.codex_5h_used_percent !== undefined
+    || account.extra?.codex_7d_used_percent !== undefined;
+
+  if (!isOAuthAccount) {
+    return [];
+  }
+
+  return (['5h', '7d', '30d'] as const)
+    .map((label) => ({
+      label,
+      usedPercent: readExtraNumber(account, `codex_${label}_used_percent`),
+      resetAfterSeconds: readExtraNumber(account, `codex_${label}_reset_after_seconds`),
+      resetAt: typeof account.extra?.[`codex_${label}_reset_at`] === 'string'
+        ? account.extra[`codex_${label}_reset_at`] as string
+        : undefined,
+      resetLabel: typeof account.extra?.[`codex_${label}_reset_label`] === 'string'
+        ? account.extra[`codex_${label}_reset_label`] as string
+        : undefined,
+    }))
+    .filter((window) => window.usedPercent !== undefined || window.resetAfterSeconds !== undefined || window.resetAt);
+}
+
+function formatQuotaReset(window: AccountQuotaWindow) {
+  if (window.resetLabel) return window.resetLabel;
+
+  if (typeof window.resetAfterSeconds === 'number' && window.resetAfterSeconds > 0) {
+    const totalHours = Math.floor(window.resetAfterSeconds / 3600);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const minutes = Math.floor((window.resetAfterSeconds % 3600) / 60);
+    if (days > 0) return `${days}d ${hours}h 后重置`;
+    if (totalHours > 0) return `${totalHours}h ${minutes}m 后重置`;
+    return `${Math.max(minutes, 1)}m 后重置`;
+  }
+
+  if (window.resetAt) {
+    return `重置于 ${formatTime(window.resetAt)}`;
+  }
+
+  return '重置时间未知';
+}
+
+function QuotaWindowRow({ window }: { window: AccountQuotaWindow }) {
+  const percent = typeof window.usedPercent === 'number'
+    ? Math.min(100, Math.max(0, window.usedPercent))
+    : undefined;
+  const progressColor = percent !== undefined && percent >= 90 ? '#a4512b' : '#1d5f55';
+
+  return (
+    <View className="flex-row items-center gap-2">
+      <View className="w-9 rounded-[8px] bg-[#e7dfcf] px-1.5 py-1.5">
+        <Text className="text-center text-xs font-bold text-[#4e463e]">{window.label}</Text>
+      </View>
+      <View className="h-2 flex-1 overflow-hidden rounded-full bg-[#e7dfcf]">
+        {percent !== undefined ? <View className="h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: progressColor }} /> : null}
+      </View>
+      <Text className="w-[62px] text-right text-xs font-semibold text-[#4e463e]">
+        {percent !== undefined ? `${percent.toFixed(0)}%` : '--'}
+      </Text>
+      <Text className="w-[94px] text-right text-[11px] text-[#7d7468]">{formatQuotaReset(window)}</Text>
+    </View>
+  );
 }
 
 function getAccountError(account: AdminAccount) {
@@ -57,9 +147,10 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
   const [searchText, setSearchText] = useState('');
   const [filter, setFilter] = useState<AccountStatusFilter>('all');
   const [usageSort, setUsageSort] = useState<UsageSort>('usage-desc');
-  const [testingAccountId, setTestingAccountId] = useState<number | null>(null);
-  const [testFeedbackByAccountId, setTestFeedbackByAccountId] = useState<Record<number, string>>({});
-  const [togglingAccountId, setTogglingAccountId] = useState<number | null>(null);
+  const [testingAccountId, setTestingAccountId] = useState<AdminResourceId | null>(null);
+  const [testFeedbackByAccountId, setTestFeedbackByAccountId] = useState<Record<string, string>>({});
+  const [togglingAccountId, setTogglingAccountId] = useState<AdminResourceId | null>(null);
+  const isCodexProxy = adminConfigState.backend === 'codex-proxy-rs';
   const keyword = useDebouncedValue(searchText.trim(), 300);
   const queryClient = useQueryClient();
 
@@ -69,13 +160,18 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ accountId, schedulable }: { accountId: number; schedulable: boolean }) =>
+    mutationFn: ({ accountId, schedulable }: { accountId: AdminResourceId; schedulable: boolean }) =>
       setAccountSchedulable(accountId, schedulable),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] }),
   });
 
   const testMutation = useMutation({
-    mutationFn: (accountId: number) => testAccount(accountId),
+    mutationFn: (accountId: AdminResourceId) => testAccount(accountId),
+  });
+
+  const quotaMutation = useMutation({
+    mutationFn: (accountId: AdminResourceId) => refreshOpenAIAccountQuota(accountId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] }),
   });
 
   const items = accountsQuery.data?.items ?? [];
@@ -88,7 +184,7 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
   });
 
   const todayByAccountId = useMemo(() => {
-    const next = new Map<number, AccountTodaySummary>();
+    const next = new Map<AdminResourceId, AccountTodaySummary>();
     items.forEach((account, index) => {
       const result = accountCostQueries[index]?.data;
       const fromStatsCost = typeof result?.cost === 'number' && Number.isFinite(result.cost) ? result.cost : undefined;
@@ -202,9 +298,11 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
       const todayStats = todayByAccountId.get(account.id) ?? { requests: 0, tokens: 0, cost: 0 };
       const nextSchedulable = visualStatus.filterKey === 'paused';
       const toggleLabel = nextSchedulable ? '恢复' : '暂停';
-      const testFeedback = testFeedbackByAccountId[account.id];
+      const testFeedback = testFeedbackByAccountId[String(account.id)];
+      const quotaWindows = getAccountQuota(account);
       const isTogglingCurrent = togglingAccountId === account.id && toggleMutation.isPending;
       const isTestingCurrent = testingAccountId === account.id && testMutation.isPending;
+      const isRefreshingQuota = quotaMutation.isPending && quotaMutation.variables === account.id;
 
       return (
         <View>
@@ -244,7 +342,30 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
               {groupsText ? <Text className="text-xs text-[#7d7468]">分组 {groupsText}</Text> : null}
               {account.error_message ? <Text className="text-xs text-[#a4512b]">异常信息：{account.error_message}</Text> : null}
 
-              <View className="flex-row gap-2">
+              {quotaWindows.length > 0 ? (
+                <View className="rounded-[14px] bg-[#f1ece2] px-3 py-3">
+                  <View className="mb-2 flex-row items-center justify-between">
+                    <Text className="text-xs font-semibold text-[#4e463e]">OAuth 额度</Text>
+                    <Pressable
+                      accessibilityLabel="刷新 OAuth 额度"
+                      className="flex-row items-center gap-1 rounded-full px-1 py-1"
+                      disabled={isRefreshingQuota}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        quotaMutation.mutate(account.id);
+                      }}
+                    >
+                      <RefreshCw color="#1d5f55" size={14} />
+                      <Text className="text-[11px] font-semibold text-[#1d5f55]">{isRefreshingQuota ? '刷新中' : '刷新'}</Text>
+                    </Pressable>
+                  </View>
+                  <View className="gap-2">
+                    {quotaWindows.map((window) => <QuotaWindowRow key={window.label} window={window} />)}
+                  </View>
+                </View>
+              ) : null}
+
+              {!isCodexProxy ? <View className="flex-row gap-2">
                 <Pressable
                   className="rounded-full bg-[#1b1d1f] px-4 py-2"
                   disabled={isTestingCurrent}
@@ -253,11 +374,11 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
                     setTestingAccountId(account.id);
                     testMutation.mutate(account.id, {
                       onSuccess: () => {
-                        setTestFeedbackByAccountId((current) => ({ ...current, [account.id]: '测试成功' }));
+                        setTestFeedbackByAccountId((current) => ({ ...current, [String(account.id)]: '测试成功' }));
                       },
                       onError: (error) => {
                         const message = error instanceof Error && error.message ? error.message : '测试失败';
-                        setTestFeedbackByAccountId((current) => ({ ...current, [account.id]: message }));
+                        setTestFeedbackByAccountId((current) => ({ ...current, [String(account.id)]: message }));
                       },
                       onSettled: () => {
                         setTestingAccountId((current) => (current === account.id ? null : current));
@@ -285,7 +406,7 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
                 >
                   <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-[#4e463e]">{isTogglingCurrent ? '处理中...' : toggleLabel}</Text>
                 </Pressable>
-              </View>
+              </View> : null}
 
               {testFeedback ? <Text className="text-xs text-[#1d5f55]">测试结果：{testFeedback}</Text> : null}
             </View>
@@ -293,7 +414,7 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
         </View>
       );
     },
-    [testFeedbackByAccountId, testMutation, testingAccountId, todayByAccountId, toggleMutation, togglingAccountId]
+    [isCodexProxy, quotaMutation, testFeedbackByAccountId, testMutation, testingAccountId, todayByAccountId, toggleMutation, togglingAccountId]
   );
 
   const emptyState = useMemo(

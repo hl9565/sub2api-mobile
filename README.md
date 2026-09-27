@@ -13,14 +13,15 @@ Mobile-first admin console for Sub2API operations, built with Expo + React Nativ
 ## Highlights
 
 - Cross-platform app (iOS / Android / Web) for operational and admin workflows.
-- Server health and metrics monitoring views.
-- User, API key, account, and group management pages.
-- Multi-account admin server switching in settings.
+- Multi-backend support: Sub2API and Codex Proxy RS.
+- Server health, tokens, and metrics monitoring views.
+- Account scheduling, OAuth quota bars, user, API key, and group management.
+- Multi-server switching and credential storage in settings.
 
 ## Tech Stack
 
-- Expo SDK 54
-- React Native 0.81
+- Expo SDK 57
+- React Native 0.86
 - React 19
 - Expo Router
 - TanStack Query

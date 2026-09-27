@@ -9,11 +9,13 @@ import { z } from 'zod';
 import { getAdminSettings, getDashboardStats } from '@/src/services/admin';
 import { queryClient } from '@/src/lib/query-client';
 import { adminConfigState, removeAdminAccount, saveAdminConfig, switchAdminAccount, type AdminAccountProfile } from '@/src/store/admin-config';
+import type { AdminBackend } from '@/src/types/admin';
 
 const { useSnapshot } = require('valtio/react');
 
 const schema = z
   .object({
+    backend: z.enum(['sub2api', 'codex-proxy-rs']),
     baseUrl: z.string().min(1, '请输入服务器地址'),
     adminApiKey: z.string(),
   })
@@ -81,6 +83,7 @@ function ServerCard({
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{account.label}</Text>
+          <Text style={{ marginTop: 4, fontSize: 12, color: colors.primary }}>{account.backend === 'codex-proxy-rs' ? 'Codex Proxy RS' : 'Sub2API'}</Text>
           <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 20, color: colors.subtext }}>{account.baseUrl}</Text>
           <Text style={{ marginTop: 8, fontSize: 11, color: '#8a8072' }}>更新时间 {new Date(account.updatedAt).toLocaleString()}</Text>
         </View>
@@ -113,6 +116,7 @@ export default function SettingsScreen() {
   const { control, handleSubmit, formState, reset } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      backend: config.backend,
       baseUrl: '',
       adminApiKey: '',
     },
@@ -137,7 +141,7 @@ export default function SettingsScreen() {
 
   async function handleAdd(values: FormValues) {
     await saveAdminConfig(values);
-    reset({ baseUrl: '', adminApiKey: '' });
+    reset({ backend: values.backend, baseUrl: '', adminApiKey: '' });
     setShowForm(false);
     await verifyAndEnter('服务器已添加并切换成功。');
   }
@@ -202,6 +206,39 @@ export default function SettingsScreen() {
         {showForm ? (
           <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 16, gap: 14 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>添加服务器</Text>
+
+            <View>
+              <Text style={{ marginBottom: 8, fontSize: 12, color: colors.subtext }}>服务类型</Text>
+              <Controller
+                control={control}
+                name="backend"
+                render={({ field: { onChange, value } }) => (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {([
+                      ['sub2api', 'Sub2API'],
+                      ['codex-proxy-rs', 'Codex Proxy RS'],
+                    ] as const).map(([key, label]) => {
+                      const active = value === key;
+                      return (
+                        <Pressable
+                          key={key}
+                          onPress={() => onChange(key as AdminBackend)}
+                          style={{
+                            flex: 1,
+                            borderRadius: 14,
+                            paddingVertical: 11,
+                            alignItems: 'center',
+                            backgroundColor: active ? colors.primary : colors.mutedCard,
+                          }}
+                        >
+                          <Text style={{ color: active ? '#fff' : colors.text, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              />
+            </View>
 
             <View>
               <Text style={{ marginBottom: 8, fontSize: 12, color: colors.subtext }}>服务器地址</Text>
@@ -283,7 +320,7 @@ export default function SettingsScreen() {
                   setShowForm(false);
                   setConnectionState('idle');
                   setConnectionMessage('');
-                  reset({ baseUrl: '', adminApiKey: '' });
+                  reset({ backend: config.backend, baseUrl: '', adminApiKey: '' });
                 }}
                 style={{ flex: 1, backgroundColor: colors.border, borderRadius: 16, paddingVertical: 14, alignItems: 'center' }}
               >

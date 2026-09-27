@@ -6,6 +6,9 @@ export type ApiEnvelope<T> = {
   data?: T;
 };
 
+export type AdminBackend = 'sub2api' | 'codex-proxy-rs';
+export type AdminResourceId = number | string;
+
 export type PaginatedData<T> = {
   items: T[];
   total: number;
@@ -154,7 +157,7 @@ export type AdminApiKey = {
 export type BalanceOperation = 'set' | 'add' | 'subtract';
 
 export type AdminGroup = {
-  id: number;
+  id: AdminResourceId;
   name: string;
   description?: string | null;
   platform: string;
@@ -179,8 +182,27 @@ export type AccountTodayStats = {
   user_cost?: number;
 };
 
+export type AdminAccountExtra = Record<string, string | number | boolean | null> & {
+  codex_5h_used_percent?: string | number | null;
+  codex_5h_reset_after_seconds?: string | number | null;
+  codex_5h_reset_at?: string | null;
+  codex_5h_reset_label?: string | null;
+  codex_5h_window_minutes?: string | number | null;
+  codex_7d_used_percent?: string | number | null;
+  codex_7d_reset_after_seconds?: string | number | null;
+  codex_7d_reset_at?: string | null;
+  codex_7d_reset_label?: string | null;
+  codex_7d_window_minutes?: string | number | null;
+  codex_30d_used_percent?: string | number | null;
+  codex_30d_reset_after_seconds?: string | number | null;
+  codex_30d_reset_at?: string | null;
+  codex_30d_reset_label?: string | null;
+  codex_30d_window_minutes?: string | number | null;
+  codex_usage_updated_at?: string | null;
+};
+
 export type AdminAccount = {
-  id: number;
+  id: AdminResourceId;
   name: string;
   platform: string;
   type: string;
@@ -193,9 +215,9 @@ export type AdminAccount = {
   error_message?: string;
   updated_at?: string;
   last_used_at?: string | null;
-  group_ids?: number[];
+  group_ids?: AdminResourceId[];
   groups?: AdminGroup[];
-  extra?: Record<string, string | number | boolean | null>;
+  extra?: AdminAccountExtra;
 };
 
 export type AccountType = 'apikey' | 'oauth' | 'setup-token' | 'upstream';

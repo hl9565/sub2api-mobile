@@ -56,7 +56,7 @@ export async function adminFetch<T>(
     throw new Error('INVALID_SERVER_RESPONSE');
   }
 
-  if (!response.ok || json.code !== 0) {
+  if (!response.ok || (json.code !== 0 && json.code !== 200)) {
     throw new Error(json.reason || json.message || 'REQUEST_FAILED');
   }
 

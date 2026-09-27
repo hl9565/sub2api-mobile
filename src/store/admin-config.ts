@@ -1,5 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+
+import type { AdminBackend } from '@/src/types/admin';
+
 const { proxy } = require('valtio');
 
 const BASE_URL_KEY = 'sub2api_base_url';
@@ -13,6 +16,7 @@ export type AdminAccountProfile = {
   label: string;
   baseUrl: string;
   adminApiKey: string;
+  backend: AdminBackend;
   updatedAt: string;
   enabled?: boolean;
 };
@@ -30,10 +34,11 @@ function getAccountLabel(baseUrl: string) {
   }
 }
 
-function normalizeConfig(input: { baseUrl: string; adminApiKey: string }) {
+function normalizeConfig(input: { baseUrl: string; adminApiKey: string; backend?: AdminBackend }) {
   return {
     baseUrl: input.baseUrl.trim().replace(/\/$/, ''),
     adminApiKey: input.adminApiKey.trim(),
+    backend: input.backend ?? 'sub2api',
   };
 }
 
@@ -45,6 +50,7 @@ function normalizeAccount(account: AdminAccountProfile): AdminAccountProfile {
   return {
     ...account,
     adminApiKey: account.adminApiKey ?? '',
+    backend: account.backend ?? 'sub2api',
     enabled: account.enabled ?? true,
   };
 }
@@ -156,6 +162,7 @@ async function deleteItem(key: string) {
 
 export const adminConfigState = proxy({
   ...getDefaultAdminConfig(),
+  backend: 'sub2api' as AdminBackend,
   accounts: [] as AdminAccountProfile[],
   activeAccountId: '',
   hydrated: false,
@@ -209,6 +216,7 @@ export async function hydrateAdminConfig() {
     adminConfigState.activeAccountId = nextActiveAccountId;
     adminConfigState.baseUrl = activeAccount?.baseUrl ?? defaults.baseUrl;
     adminConfigState.adminApiKey = activeAccount?.adminApiKey ?? defaults.adminApiKey;
+    adminConfigState.backend = activeAccount?.backend ?? 'sub2api';
 
     await Promise.all([
       persistAccounts(sortedAccounts),
@@ -221,14 +229,16 @@ export async function hydrateAdminConfig() {
   }
 }
 
-export async function saveAdminConfig(input: { baseUrl: string; adminApiKey: string }) {
+export async function saveAdminConfig(input: { baseUrl: string; adminApiKey: string; backend?: AdminBackend }) {
   adminConfigState.saving = true;
 
   try {
     const normalized = normalizeConfig(input);
     const nextUpdatedAt = new Date().toISOString();
     const existingAccount = adminConfigState.accounts.find(
-      (account: AdminAccountProfile) => account.baseUrl === normalized.baseUrl && account.adminApiKey === normalized.adminApiKey
+      (account: AdminAccountProfile) => account.baseUrl === normalized.baseUrl
+        && account.adminApiKey === normalized.adminApiKey
+        && account.backend === normalized.backend
     );
     const nextAccount: AdminAccountProfile = existingAccount
       ? {
@@ -259,6 +269,7 @@ export async function saveAdminConfig(input: { baseUrl: string; adminApiKey: str
     adminConfigState.activeAccountId = nextAccount.id;
     adminConfigState.baseUrl = normalized.baseUrl;
     adminConfigState.adminApiKey = normalized.adminApiKey;
+    adminConfigState.backend = normalized.backend;
   } finally {
     adminConfigState.saving = false;
   }
@@ -295,6 +306,7 @@ export async function switchAdminAccount(accountId: string) {
   adminConfigState.activeAccountId = nextAccount.id;
   adminConfigState.baseUrl = nextAccount.baseUrl;
   adminConfigState.adminApiKey = nextAccount.adminApiKey;
+  adminConfigState.backend = nextAccount.backend;
 }
 
 export async function removeAdminAccount(accountId: string) {
@@ -312,6 +324,7 @@ export async function removeAdminAccount(accountId: string) {
   adminConfigState.activeAccountId = nextActiveAccount?.id ?? '';
   adminConfigState.baseUrl = nextActiveAccount?.baseUrl ?? '';
   adminConfigState.adminApiKey = nextActiveAccount?.adminApiKey ?? '';
+  adminConfigState.backend = nextActiveAccount?.backend ?? 'sub2api';
 }
 
 export async function logoutAdminAccount() {
@@ -320,6 +333,7 @@ export async function logoutAdminAccount() {
   adminConfigState.activeAccountId = '';
   adminConfigState.baseUrl = '';
   adminConfigState.adminApiKey = '';
+  adminConfigState.backend = 'sub2api';
 }
 
 export async function setAdminAccountEnabled(accountId: string, enabled: boolean) {
@@ -341,4 +355,5 @@ export async function setAdminAccountEnabled(accountId: string, enabled: boolean
   adminConfigState.activeAccountId = nextActiveAccount?.id ?? '';
   adminConfigState.baseUrl = nextActiveAccount?.baseUrl ?? '';
   adminConfigState.adminApiKey = nextActiveAccount?.adminApiKey ?? '';
+  adminConfigState.backend = nextActiveAccount?.backend ?? 'sub2api';
 }
