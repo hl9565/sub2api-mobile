@@ -82,10 +82,34 @@ function ServerCard({
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{account.label}</Text>
-          <Text style={{ marginTop: 4, fontSize: 12, color: colors.primary }}>{account.backend === 'codex-proxy-rs' ? 'Codex Proxy RS' : 'Sub2API'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {active ? (
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success }} />
+            ) : null}
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{account.label}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5 }}>
+            <View
+              style={{
+                backgroundColor: account.backend === 'codex-proxy-rs' ? '#f1e2cd' : '#d8eee5',
+                borderRadius: 6,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: account.backend === 'codex-proxy-rs' ? '#8c5a22' : colors.primary,
+                }}
+              >
+                {account.backend === 'codex-proxy-rs' ? 'Codex Proxy RS' : 'Sub2API'}
+              </Text>
+            </View>
+          </View>
           <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 20, color: colors.subtext }}>{account.baseUrl}</Text>
-          <Text style={{ marginTop: 8, fontSize: 11, color: '#8a8072' }}>更新时间 {new Date(account.updatedAt).toLocaleString()}</Text>
+          <Text style={{ marginTop: 6, fontSize: 11, color: '#8a8072' }}>更新时间 {new Date(account.updatedAt).toLocaleString()}</Text>
         </View>
         {active ? (
           <View style={{ backgroundColor: colors.success, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>

@@ -1,5 +1,15 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, RefreshCw, Search, ShieldCheck, ShieldOff } from 'lucide-react-native';
+import { router } from 'expo-router';
+import {
+  ChevronDown,
+  ChevronUp,
+  KeyRound,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  ShieldOff,
+} from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 import type { Edge } from 'react-native-safe-area-context';
@@ -71,10 +81,10 @@ function getAccountQuota(account: AdminAccount): AccountQuotaWindow[] {
       usedPercent: readExtraNumber(account, `codex_${label}_used_percent`),
       resetAfterSeconds: readExtraNumber(account, `codex_${label}_reset_after_seconds`),
       resetAt: typeof account.extra?.[`codex_${label}_reset_at`] === 'string'
-        ? account.extra[`codex_${label}_reset_at`] as string
+        ? (account.extra[`codex_${label}_reset_at`] as string)
         : undefined,
       resetLabel: typeof account.extra?.[`codex_${label}_reset_label`] === 'string'
-        ? account.extra[`codex_${label}_reset_label`] as string
+        ? (account.extra[`codex_${label}_reset_label`] as string)
         : undefined,
     }))
     .filter((window) => window.usedPercent !== undefined || window.resetAfterSeconds !== undefined || window.resetAt);
@@ -146,7 +156,9 @@ type AccountsListScreenProps = {
 export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
   const [searchText, setSearchText] = useState('');
   const [filter, setFilter] = useState<AccountStatusFilter>('all');
+  const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [usageSort, setUsageSort] = useState<UsageSort>('usage-desc');
+  const [expandedAccountIds, setExpandedAccountIds] = useState<Set<string>>(new Set());
   const [testingAccountId, setTestingAccountId] = useState<AdminResourceId | null>(null);
   const [testFeedbackByAccountId, setTestFeedbackByAccountId] = useState<Record<string, string>>({});
   const [togglingAccountId, setTogglingAccountId] = useState<AdminResourceId | null>(null);
@@ -197,13 +209,27 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
     return next;
   }, [accountCostQueries, items]);
 
+  const availablePlatforms = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((account) => {
+      if (account.platform?.trim()) {
+        set.add(account.platform.trim().toLowerCase());
+      }
+    });
+    return Array.from(set);
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     const statusMatched = items.filter((account) => {
       const visualStatus = getAccountVisualStatus(account);
-      if (filter === 'all') return true;
-      if (filter === 'active') return visualStatus.filterKey === 'active';
-      if (filter === 'paused') return visualStatus.filterKey === 'paused';
-      if (filter === 'error') return visualStatus.filterKey === 'error';
+      if (filter === 'active' && visualStatus.filterKey !== 'active') return false;
+      if (filter === 'paused' && visualStatus.filterKey !== 'paused') return false;
+      if (filter === 'error' && visualStatus.filterKey !== 'error') return false;
+
+      if (platformFilter !== 'all' && account.platform?.toLowerCase() !== platformFilter) {
+        return false;
+      }
+
       return true;
     });
 
@@ -220,7 +246,8 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
     });
 
     return sorted;
-  }, [filter, items, todayByAccountId, usageSort]);
+  }, [filter, items, platformFilter, todayByAccountId, usageSort]);
+
   const errorMessage = accountsQuery.error instanceof Error ? accountsQuery.error.message : '';
 
   const summary = useMemo(() => {
@@ -231,10 +258,30 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
     return { total, active, paused, errors };
   }, [items]);
 
+  const areAllExpanded = filteredItems.length > 0 && filteredItems.every((item) => expandedAccountIds.has(String(item.id)));
+
+  const toggleExpand = useCallback((id: AdminResourceId) => {
+    const key = String(id);
+    setExpandedAccountIds((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleExpandAll = useCallback(() => {
+    if (areAllExpanded) {
+      setExpandedAccountIds(new Set());
+    } else {
+      setExpandedAccountIds(new Set(filteredItems.map((item) => String(item.id))));
+    }
+  }, [areAllExpanded, filteredItems]);
+
   const listHeader = useMemo(
     () => (
       <View className="pb-2">
-        <View className="rounded-[24px] bg-[#fbf8f2] p-2.5">
+        <View className="rounded-[24px] border border-[#e6dece]/80 bg-[#fbf8f2] p-3 shadow-sm">
           <View className="flex-row items-center rounded-[18px] bg-[#f1ece2] px-4 py-3">
             <Search color="#7d7468" size={18} />
             <TextInput
@@ -246,6 +293,7 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
             />
           </View>
 
+          {/* Status filter tabs */}
           <View className="mt-3 flex-row gap-2">
             {([
               ['all', `全部 ${summary.total}`],
@@ -258,7 +306,7 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
                 <Pressable
                   key={key}
                   onPress={() => setFilter(key)}
-                  className={active ? 'rounded-full bg-[#1d5f55] px-3 py-2' : 'rounded-full bg-[#e7dfcf] px-3 py-2'}
+                  className={active ? 'rounded-full bg-[#1d5f55] px-3 py-1.5' : 'rounded-full bg-[#e7dfcf] px-3 py-1.5'}
                 >
                   <Text className={active ? 'text-xs font-semibold text-white' : 'text-xs font-semibold text-[#4e463e]'}>{label}</Text>
                 </Pressable>
@@ -266,27 +314,72 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
             })}
           </View>
 
-          <View className="mt-3 flex-row gap-2">
-            {([
-              ['usage-desc', '请求高→低'],
-              ['usage-asc', '请求低→高'],
-            ] as const).map(([key, label]) => {
-              const active = usageSort === key;
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => setUsageSort(key)}
-                  className={active ? 'rounded-full bg-[#4e463e] px-3 py-3' : 'rounded-full bg-[#e7dfcf] px-3 py-3'}
-                >
-                  <Text className={active ? 'text-xs font-semibold text-white' : 'text-xs font-semibold text-[#4e463e]'}>{label}</Text>
-                </Pressable>
-              );
-            })}
+          {/* Platform filter pills if multiple */}
+          {availablePlatforms.length > 1 ? (
+            <View className="mt-2.5 flex-row flex-wrap items-center gap-1.5">
+              <Text className="text-[11px] text-[#7d7468] mr-1">平台：</Text>
+              <Pressable
+                onPress={() => setPlatformFilter('all')}
+                className={`rounded-full px-2.5 py-1 ${platformFilter === 'all' ? 'bg-[#4e463e]' : 'bg-[#e7dfcf]/70'}`}
+              >
+                <Text className={`text-[11px] font-semibold ${platformFilter === 'all' ? 'text-white' : 'text-[#4e463e]'}`}>全部</Text>
+              </Pressable>
+              {availablePlatforms.map((plat) => {
+                const active = platformFilter === plat;
+                return (
+                  <Pressable
+                    key={plat}
+                    onPress={() => setPlatformFilter(plat)}
+                    className={`rounded-full px-2.5 py-1 ${active ? 'bg-[#4e463e]' : 'bg-[#e7dfcf]/70'}`}
+                  >
+                    <Text className={`text-[11px] font-semibold ${active ? 'text-white' : 'text-[#4e463e]'}`}>{plat}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/* Sort & Expand Controls */}
+          <View className="mt-2.5 flex-row items-center justify-between pt-2 border-t border-[#e7dfcf]/50">
+            <View className="flex-row gap-2">
+              {([
+                ['usage-desc', '请求高→低'],
+                ['usage-asc', '请求低→高'],
+              ] as const).map(([key, label]) => {
+                const active = usageSort === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setUsageSort(key)}
+                    className={active ? 'rounded-full bg-[#4e463e] px-2.5 py-1' : 'rounded-full bg-[#e7dfcf] px-2.5 py-1'}
+                  >
+                    <Text className={active ? 'text-[11px] font-semibold text-white' : 'text-[11px] font-semibold text-[#4e463e]'}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable onPress={toggleExpandAll} className="px-2 py-1">
+              <Text className="text-xs font-semibold text-[#1d5f55]">
+                {areAllExpanded ? '全部折叠' : '全部展开'}
+              </Text>
+            </Pressable>
           </View>
         </View>
       </View>
     ),
-    [filter, summary.active, summary.errors, summary.paused, summary.total, usageSort]
+    [
+      availablePlatforms,
+      filter,
+      platformFilter,
+      summary.active,
+      summary.errors,
+      summary.paused,
+      summary.total,
+      usageSort,
+      areAllExpanded,
+      toggleExpandAll,
+    ]
   );
 
   const renderItem = useCallback(
@@ -300,12 +393,16 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
       const toggleLabel = nextSchedulable ? '恢复' : '暂停';
       const testFeedback = testFeedbackByAccountId[String(account.id)];
       const quotaWindows = getAccountQuota(account);
+      const isExpanded = expandedAccountIds.has(String(account.id));
       const isTogglingCurrent = togglingAccountId === account.id && toggleMutation.isPending;
       const isTestingCurrent = testingAccountId === account.id && testMutation.isPending;
       const isRefreshingQuota = quotaMutation.isPending && quotaMutation.variables === account.id;
 
+      // Primary quota window for mini preview (usually 5h)
+      const primaryQuota = quotaWindows.find((w) => w.label === '5h') || quotaWindows[0];
+
       return (
-        <View>
+        <Pressable onPress={() => toggleExpand(account.id)} className="active:opacity-90">
           <ListCard
             title={account.name}
             meta={`${account.platform} · ${account.type}`}
@@ -313,108 +410,175 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
             badgeTone={visualStatus.badgeTone}
             icon={KeyRound}
           >
-            <View className="gap-3">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-2">
-                  {account.schedulable && !isError ? <ShieldCheck color="#7d7468" size={14} /> : <ShieldOff color="#7d7468" size={14} />}
-                  <Text className="text-sm text-[#7d7468]">状态：{statusText}</Text>
-                </View>
-                <Text className="text-xs text-[#7d7468]">最近使用 {formatTime(account.last_used_at || account.updated_at)}</Text>
-              </View>
-
+            <View className="gap-2.5">
+              {/* Compact Metrics Bar */}
               <View className="flex-row gap-2">
-                <View className="flex-1 rounded-[14px] bg-[#f1ece2] px-3 py-3">
-                  <Text className="text-[11px] text-[#7d7468]">请求次数</Text>
-                  <Text className="mt-1 text-sm font-bold text-[#16181a]">{todayStats.requests}</Text>
+                <View className="flex-1 rounded-[12px] bg-[#f1ece2] px-2.5 py-2">
+                  <Text className="text-[10px] text-[#7d7468]">今日请求</Text>
+                  <Text className="mt-0.5 text-sm font-bold text-[#16181a]">{todayStats.requests}</Text>
                 </View>
-                <View className="flex-1 rounded-[14px] bg-[#f1ece2] px-3 py-3">
-                  <Text className="text-[11px] text-[#7d7468]">消费金额</Text>
-                  <Text className="mt-1 text-sm font-bold text-[#16181a]">${todayStats.cost.toFixed(2)}</Text>
+                <View className="flex-1 rounded-[12px] bg-[#f1ece2] px-2.5 py-2">
+                  <Text className="text-[10px] text-[#7d7468]">消费金额</Text>
+                  <Text className="mt-0.5 text-sm font-bold text-[#16181a]">${todayStats.cost.toFixed(2)}</Text>
                 </View>
-                <View className="flex-1 rounded-[14px] bg-[#f1ece2] px-3 py-3">
-                  <Text className="text-[11px] text-[#7d7468]">token消耗</Text>
-                  <Text className="mt-1 text-sm font-bold text-[#16181a]">{formatTokenValue(todayStats.tokens)}</Text>
+                <View className="flex-1 rounded-[12px] bg-[#f1ece2] px-2.5 py-2">
+                  <Text className="text-[10px] text-[#7d7468]">Token 消耗</Text>
+                  <Text className="mt-0.5 text-sm font-bold text-[#16181a]">{formatTokenValue(todayStats.tokens)}</Text>
                 </View>
               </View>
 
-              <Text className="text-xs text-[#7d7468]">优先级 {account.priority ?? 0} · 倍率 {(account.rate_multiplier ?? 1).toFixed(2)}x</Text>
-
-              {groupsText ? <Text className="text-xs text-[#7d7468]">分组 {groupsText}</Text> : null}
-              {account.error_message ? <Text className="text-xs text-[#a4512b]">异常信息：{account.error_message}</Text> : null}
-
-              {quotaWindows.length > 0 ? (
-                <View className="rounded-[14px] bg-[#f1ece2] px-3 py-3">
-                  <View className="mb-2 flex-row items-center justify-between">
-                    <Text className="text-xs font-semibold text-[#4e463e]">OAuth 额度</Text>
-                    <Pressable
-                      accessibilityLabel="刷新 OAuth 额度"
-                      className="flex-row items-center gap-1 rounded-full px-1 py-1"
-                      disabled={isRefreshingQuota}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        quotaMutation.mutate(account.id);
-                      }}
-                    >
-                      <RefreshCw color="#1d5f55" size={14} />
-                      <Text className="text-[11px] font-semibold text-[#1d5f55]">{isRefreshingQuota ? '刷新中' : '刷新'}</Text>
-                    </Pressable>
+              {/* Collapsed state mini quota preview */}
+              {!isExpanded && primaryQuota && primaryQuota.usedPercent !== undefined ? (
+                <View className="flex-row items-center justify-between rounded-[10px] bg-[#f1ece2]/80 px-2.5 py-1.5">
+                  <View className="flex-row items-center gap-1.5 flex-1 mr-2">
+                    <Text className="text-[11px] font-bold text-[#4e463e]">{primaryQuota.label} 额度</Text>
+                    <View className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e7dfcf]">
+                      <View
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, primaryQuota.usedPercent))}%`,
+                          backgroundColor: primaryQuota.usedPercent >= 90 ? '#a4512b' : '#1d5f55',
+                        }}
+                      />
+                    </View>
+                    <Text className="text-[11px] font-semibold text-[#4e463e]">{primaryQuota.usedPercent.toFixed(0)}%</Text>
                   </View>
-                  <View className="gap-2">
-                    {quotaWindows.map((window) => <QuotaWindowRow key={window.label} window={window} />)}
-                  </View>
+                  <Text className="text-[10px] text-[#7d7468]">{formatQuotaReset(primaryQuota)}</Text>
                 </View>
               ) : null}
 
-              {!isCodexProxy ? <View className="flex-row gap-2">
-                <Pressable
-                  className="rounded-full bg-[#1b1d1f] px-4 py-2"
-                  disabled={isTestingCurrent}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    setTestingAccountId(account.id);
-                    testMutation.mutate(account.id, {
-                      onSuccess: () => {
-                        setTestFeedbackByAccountId((current) => ({ ...current, [String(account.id)]: '测试成功' }));
-                      },
-                      onError: (error) => {
-                        const message = error instanceof Error && error.message ? error.message : '测试失败';
-                        setTestFeedbackByAccountId((current) => ({ ...current, [String(account.id)]: message }));
-                      },
-                      onSettled: () => {
-                        setTestingAccountId((current) => (current === account.id ? null : current));
-                      },
-                    });
-                  }}
-                >
-                  <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-[#f6f1e8]">{isTestingCurrent ? '测试中...' : '测试'}</Text>
-                </Pressable>
-                <Pressable
-                  className="rounded-full bg-[#e7dfcf] px-4 py-2"
-                  disabled={isTogglingCurrent}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    setTogglingAccountId(account.id);
-                    toggleMutation.mutate({
-                      accountId: account.id,
-                      schedulable: nextSchedulable,
-                    }, {
-                      onSettled: () => {
-                        setTogglingAccountId((current) => (current === account.id ? null : current));
-                      },
-                    });
-                  }}
-                >
-                  <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-[#4e463e]">{isTogglingCurrent ? '处理中...' : toggleLabel}</Text>
-                </Pressable>
-              </View> : null}
+              {/* Expand/Collapse Toggle Indicator */}
+              <View className="flex-row items-center justify-between pt-1">
+                <View className="flex-row items-center gap-1.5">
+                  {account.schedulable && !isError ? <ShieldCheck color="#1d5f55" size={13} /> : <ShieldOff color="#7d7468" size={13} />}
+                  <Text className="text-[11px] text-[#7d7468]">
+                    {account.schedulable && !isError ? '调度正常' : '暂停调度'} · 最近活跃 {formatTime(account.last_used_at || account.updated_at)}
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-0.5">
+                  <Text className="text-[11px] font-medium text-[#7d7468]">{isExpanded ? '收起' : '详情'}</Text>
+                  {isExpanded ? <ChevronUp color="#7d7468" size={14} /> : <ChevronDown color="#7d7468" size={14} />}
+                </View>
+              </View>
 
-              {testFeedback ? <Text className="text-xs text-[#1d5f55]">测试结果：{testFeedback}</Text> : null}
+              {/* Expanded details container */}
+              {isExpanded ? (
+                <View className="gap-2.5 pt-2 border-t border-[#e7dfcf]/60">
+                  <Text className="text-xs text-[#7d7468]">
+                    优先级 {account.priority ?? 0} · 倍率 {(account.rate_multiplier ?? 1).toFixed(2)}x
+                    {account.concurrency ? ` · 并发 ${account.concurrency}` : ''}
+                  </Text>
+
+                  {groupsText ? <Text className="text-xs text-[#7d7468]">分组：{groupsText}</Text> : null}
+                  {account.error_message ? <Text className="text-xs text-[#a4512b]">异常信息：{account.error_message}</Text> : null}
+
+                  {/* Full Quota Windows */}
+                  {quotaWindows.length > 0 ? (
+                    <View className="rounded-[14px] bg-[#f1ece2] px-3 py-3">
+                      <View className="mb-2 flex-row items-center justify-between">
+                        <Text className="text-xs font-semibold text-[#4e463e]">OAuth 额度详情</Text>
+                        <Pressable
+                          accessibilityLabel="刷新 OAuth 额度"
+                          className="flex-row items-center gap-1 rounded-full px-1.5 py-0.5 bg-[#e7dfcf]"
+                          disabled={isRefreshingQuota}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            quotaMutation.mutate(account.id);
+                          }}
+                        >
+                          <RefreshCw color="#1d5f55" size={12} />
+                          <Text className="text-[11px] font-semibold text-[#1d5f55]">
+                            {isRefreshingQuota ? '刷新中' : '刷新'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <View className="gap-2">
+                        {quotaWindows.map((window) => (
+                          <QuotaWindowRow key={window.label} window={window} />
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* Action buttons (only in Sub2API) */}
+                  {!isCodexProxy ? (
+                    <View className="flex-row gap-2 mt-1">
+                      <Pressable
+                        className="rounded-full bg-[#1b1d1f] px-4 py-2"
+                        disabled={isTestingCurrent}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          setTestingAccountId(account.id);
+                          testMutation.mutate(account.id, {
+                            onSuccess: () => {
+                              setTestFeedbackByAccountId((current) => ({
+                                ...current,
+                                [String(account.id)]: '测试成功',
+                              }));
+                            },
+                            onError: (error) => {
+                              const message = error instanceof Error && error.message ? error.message : '测试失败';
+                              setTestFeedbackByAccountId((current) => ({
+                                ...current,
+                                [String(account.id)]: message,
+                              }));
+                            },
+                            onSettled: () => {
+                              setTestingAccountId((current) => (current === account.id ? null : current));
+                            },
+                          });
+                        }}
+                      >
+                        <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-[#f6f1e8]">
+                          {isTestingCurrent ? '测试中...' : '测试'}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        className="rounded-full bg-[#e7dfcf] px-4 py-2"
+                        disabled={isTogglingCurrent}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          setTogglingAccountId(account.id);
+                          toggleMutation.mutate(
+                            {
+                              accountId: account.id,
+                              schedulable: nextSchedulable,
+                            },
+                            {
+                              onSettled: () => {
+                                setTogglingAccountId((current) => (current === account.id ? null : current));
+                              },
+                            }
+                          );
+                        }}
+                      >
+                        <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-[#4e463e]">
+                          {isTogglingCurrent ? '处理中...' : toggleLabel}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+
+                  {testFeedback ? <Text className="text-xs text-[#1d5f55]">测试结果：{testFeedback}</Text> : null}
+                </View>
+              ) : null}
             </View>
           </ListCard>
-        </View>
+        </Pressable>
       );
     },
-    [isCodexProxy, quotaMutation, testFeedbackByAccountId, testMutation, testingAccountId, todayByAccountId, toggleMutation, togglingAccountId]
+    [
+      expandedAccountIds,
+      isCodexProxy,
+      quotaMutation,
+      testFeedbackByAccountId,
+      testMutation,
+      testingAccountId,
+      todayByAccountId,
+      toggleExpand,
+      toggleMutation,
+      togglingAccountId,
+    ]
   );
 
   const emptyState = useMemo(
@@ -422,13 +586,25 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
     [errorMessage]
   );
 
+  const headerRight = useMemo(() => {
+    if (isCodexProxy) return null;
+    return (
+      <Pressable
+        onPress={() => router.push('/accounts/create')}
+        className="flex-row items-center gap-1 rounded-full bg-[#1d5f55] px-3 py-1.5"
+      >
+        <Plus color="#fff" size={14} />
+        <Text className="text-xs font-bold text-white">添加</Text>
+      </Pressable>
+    );
+  }, [isCodexProxy]);
+
   return (
     <ScreenShell
       title="账号清单"
-      subtitle="查看名称、平台&类型、请求次数、消费金额、token消耗，并支持筛选与排序。"
-      titleAside={(
-        <Text className="text-[11px] text-[#7d7468]">更接近网页后台的账号视图。</Text>
-      )}
+      subtitle="卡片支持展开详情，支持按平台与状态过滤。"
+      titleAside={<Text className="text-[11px] text-[#7d7468]">共 {summary.total} 个账号</Text>}
+      right={headerRight}
       variant="minimal"
       scroll={false}
       safeAreaEdges={safeAreaEdges}
@@ -445,11 +621,11 @@ export function AccountsListScreen({ safeAreaEdges }: AccountsListScreenProps) {
         refreshControl={<RefreshControl refreshing={accountsQuery.isRefetching} onRefresh={() => void accountsQuery.refetch()} tintColor="#1d5f55" />}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={emptyState}
-        ItemSeparatorComponent={() => <View className="h-4" />}
+        ItemSeparatorComponent={() => <View className="h-3" />}
         keyboardShouldPersistTaps="handled"
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={5}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={6}
       />
     </ScreenShell>
   );

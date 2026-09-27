@@ -322,7 +322,11 @@ export default function MonitorScreen() {
               <StatCard
                 title={`${rangeTitle} 成本`}
                 value={formatMoney(rangeKey === '24h' ? selectedCostTotal || stats?.today_cost : selectedCostTotal)}
-                detail={`TPM ${formatNumber(stats?.tpm)}`}
+                detail={
+                  config.backend === 'codex-proxy-rs'
+                    ? (stats?.total_cost ? `总账单 ${formatMoney(stats.total_cost)}` : undefined)
+                    : (stats?.tpm ? `TPM ${formatNumber(stats.tpm)}` : undefined)
+                }
               />
             </View>
             <Section
@@ -372,16 +376,18 @@ export default function MonitorScreen() {
               <LineTrendChart title="成本趋势" subtitle="当前时间范围内的成本变化趋势" points={costPoints} color="#7651c8" formatValue={formatMoney} />
             ) : null}
 
-            <BarChartCard
-              title="Token 结构"
-              subtitle="输入、输出、缓存读取占比"
-              items={[
-                { label: '输入 Token', value: totalInputTokens, color: '#1d5f55', hint: '请求进入模型前消耗的 token。' },
-                { label: '输出 Token', value: totalOutputTokens, color: '#d38b36', hint: '模型返回内容消耗的 token。' },
-                { label: '缓存读取 Token', value: totalCacheReadTokens, color: '#7d7468', hint: '命中缓存后复用的 token。' },
-              ]}
-              formatValue={formatTokenDisplay}
-            />
+            {totalInputTokens + totalOutputTokens + totalCacheReadTokens > 0 ? (
+              <BarChartCard
+                title="Token 结构"
+                subtitle="输入、输出、缓存读取占比"
+                items={[
+                  { label: '输入 Token', value: totalInputTokens, color: '#1d5f55', hint: '请求进入模型前消耗的 token。' },
+                  { label: '输出 Token', value: totalOutputTokens, color: '#d38b36', hint: '模型返回内容消耗的 token。' },
+                  { label: '缓存读取 Token', value: totalCacheReadTokens, color: '#7d7468', hint: '命中缓存后复用的 token。' },
+                ]}
+                formatValue={formatTokenDisplay}
+              />
+            ) : null}
 
             <DonutChartCard
               title="账号健康"
@@ -396,17 +402,19 @@ export default function MonitorScreen() {
               ]}
             />
 
-            <BarChartCard
-              title="热点模型"
-              subtitle="当前时间范围内最活跃的模型"
-              items={topModels.map((model) => ({
-                label: model.model,
-                value: model.total_tokens,
-                color: '#a34d2d',
-                meta: `请求 ${formatNumber(model.requests)} · 成本 ${formatMoney(model.cost)}`,
-              }))}
-              formatValue={formatCompactNumber}
-            />
+            {topModels.length > 0 ? (
+              <BarChartCard
+                title="热点模型"
+                subtitle="当前时间范围内最活跃的模型"
+                items={topModels.map((model) => ({
+                  label: model.model,
+                  value: model.total_tokens,
+                  color: '#a34d2d',
+                  meta: `请求 ${formatNumber(model.requests)} · 成本 ${formatMoney(model.cost)}`,
+                }))}
+                formatValue={formatCompactNumber}
+              />
+            ) : null}
 
             <Section title="趋势摘要" subtitle="最近几个统计点的请求、Token 和成本变化">
               {latestTrendPoints.length === 0 ? (
