@@ -6,6 +6,7 @@ import {
   getCodexProxyDashboardModels,
   getCodexProxyDashboardStats,
   getCodexProxyDashboardTrend,
+  getCodexProxyDiagnostics,
   getCodexProxySettings,
   listCodexProxyAccounts,
   listCodexProxyGroups,
@@ -21,6 +22,7 @@ import type {
   AdminResourceId,
   AdminUser,
   BalanceOperation,
+  CodexDiagnosticsResponse,
   DashboardModelStats,
   DashboardSnapshot,
   DashboardStats,
@@ -83,6 +85,17 @@ export function getDashboardTrend(params: {
 export function getDashboardModels(params: { start_date: string; end_date: string }) {
   if (isCodexProxyBackend()) return getCodexProxyDashboardModels();
   return adminFetch<DashboardModelStats>(`/api/v1/admin/dashboard/models${buildQuery(params)}`);
+}
+
+export function getDashboardDiagnostics(params?: {
+  rangeKey?: '24h' | '7d' | '30d';
+  dimension?: 'model' | 'account' | 'apiKey' | 'provider' | 'transport' | 'failureClass';
+}) {
+  if (isCodexProxyBackend()) return getCodexProxyDiagnostics(params);
+  return Promise.resolve({
+    dimension: params?.dimension ?? 'model',
+    items: [],
+  } as CodexDiagnosticsResponse);
 }
 
 export function getDashboardSnapshot(params: {

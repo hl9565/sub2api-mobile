@@ -6,6 +6,8 @@ import type {
   AdminGroup,
   AdminSettings,
   CodexCostEfficiency,
+  CodexDiagnosticsResponse,
+  CodexHealthInsights,
   CodexPerformanceInsights,
   CodexUsageSummary,
   DashboardModelStats,
@@ -246,14 +248,23 @@ function getCodexRangeTime(rangeKey: '24h' | '7d' | '30d' = '7d') {
 type CodexOverviewResponse = {
   granularity?: string;
   health?: {
+    successRate?: number | null;
+    completionRate?: number | null;
     totalRequests?: number;
     successRequests?: number;
     failedRequests?: number;
+    cancelledRequests?: number;
+    incompleteRequests?: number;
+    callerErrorRequests?: number;
     points?: Array<{
       bucket?: string;
+      label?: string;
       totalRequests?: number;
       successRequests?: number;
       failedRequests?: number;
+      cancelledRequests?: number;
+      incompleteRequests?: number;
+      callerErrorRequests?: number;
     }>;
   };
   performance?: {
@@ -262,7 +273,19 @@ type CodexOverviewResponse = {
     latencyP99Ms?: number | null;
     firstTokenP50Ms?: number | null;
     firstTokenP95Ms?: number | null;
+    firstTokenP99Ms?: number | null;
     outputThroughputP50?: number | null;
+    points?: Array<{
+      bucket?: string;
+      label?: string;
+      latencyP50Ms?: number | null;
+      latencyP95Ms?: number | null;
+      latencyP99Ms?: number | null;
+      firstTokenP50Ms?: number | null;
+      firstTokenP95Ms?: number | null;
+      firstTokenP99Ms?: number | null;
+      outputThroughputP50?: number | null;
+    }>;
   };
   cost?: {
     estimatedCost?: number | null;
@@ -323,17 +346,42 @@ export async function getCodexProxyDashboardStats(params?: {
   const outputTokensNum = parseCompactNumber(usageSummary?.outputTokens) ?? 0;
   const cachedTokensNum = parseCompactNumber(usageSummary?.cachedTokens) ?? 0;
 
+  const health: CodexHealthInsights | undefined = overview?.health ? {
+    successRate: parseFlexibleNumber(overview.health.successRate),
+    completionRate: parseFlexibleNumber(overview.health.completionRate),
+    totalRequests: parseFlexibleNumber(overview.health.totalRequests) ?? undefined,
+    successRequests: parseFlexibleNumber(overview.health.successRequests) ?? undefined,
+    failedRequests: parseFlexibleNumber(overview.health.failedRequests) ?? undefined,
+    cancelledRequests: parseFlexibleNumber(overview.health.cancelledRequests) ?? undefined,
+    incompleteRequests: parseFlexibleNumber(overview.health.incompleteRequests) ?? undefined,
+    callerErrorRequests: parseFlexibleNumber(overview.health.callerErrorRequests) ?? undefined,
+    points: overview.health.points,
+  } : undefined;
+
+  const coverage = overview?.cost?.coverage;
+  const coverageTotal = coverage ? (coverage.known ?? 0) + (coverage.partial ?? 0) + (coverage.unknown ?? 0) : 0;
+  const coverageRate = coverageTotal > 0 ? ((coverage?.known ?? 0) + (coverage?.partial ?? 0)) / coverageTotal : null;
+
   const costEfficiency: CodexCostEfficiency | undefined = overview?.cost ? {
     estimatedCost: parseFlexibleNumber(overview.cost.estimatedCost),
+    standardCost: parseFlexibleNumber(overview.cost.standardCost),
     noCacheCost: parseFlexibleNumber(overview.cost.noCacheCost),
     cacheSavings: parseFlexibleNumber(overview.cost.cacheSavings),
+    tierPremium: parseFlexibleNumber(overview.cost.tierPremium),
     costPerSuccessfulRequest: parseFlexibleNumber(overview.cost.costPerSuccessfulRequest),
+    coverageRate,
+    points: overview.cost.points,
   } : undefined;
 
   const performance: CodexPerformanceInsights | undefined = overview?.performance ? {
     latencyP50Ms: parseFlexibleNumber(overview.performance.latencyP50Ms),
     latencyP95Ms: parseFlexibleNumber(overview.performance.latencyP95Ms),
     latencyP99Ms: parseFlexibleNumber(overview.performance.latencyP99Ms),
+    firstTokenP50Ms: parseFlexibleNumber(overview.performance.firstTokenP50Ms),
+    firstTokenP95Ms: parseFlexibleNumber(overview.performance.firstTokenP95Ms),
+    firstTokenP99Ms: parseFlexibleNumber(overview.performance.firstTokenP99Ms),
+    outputThroughputP50: parseFlexibleNumber(overview.performance.outputThroughputP50),
+    points: overview.performance.points,
   } : undefined;
 
   const estimatedCost = parseFlexibleNumber(overview?.cost?.estimatedCost) ?? 0;
@@ -359,9 +407,21 @@ export async function getCodexProxyDashboardStats(params?: {
     rpm: 0,
     tpm: 0,
     codex_usage_summary: usageSummary ?? undefined,
+    codex_health: health,
     codex_cost_efficiency: costEfficiency,
     codex_performance: performance,
+    codex_granularity: overview?.granularity,
   } satisfies DashboardStats;
+}
+
+export async function getCodexProxyDiagnostics(params?: {
+  rangeKey?: '24h' | '7d' | '30d';
+  dimension?: 'model' | 'account' | 'apiKey' | 'provider' | 'transport' | 'failureClass';
+}) {
+  const { startTime, endTime } = getCodexRangeTime(params?.rangeKey);
+  const dimension = params?.dimension ?? 'model';
+  const query = buildQuery({ startTime, endTime, dimension });
+  return adminFetch<CodexDiagnosticsResponse>(`/api/admin/usage/insights/diagnostics${query}`);
 }
 
 export async function getCodexProxyDashboardTrend(params?: {

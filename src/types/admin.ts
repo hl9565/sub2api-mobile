@@ -27,17 +27,88 @@ export type CodexUsageSummary = {
   averageLatencyMs?: string;
 };
 
+export type CodexHealthInsights = {
+  successRate?: number | null;
+  completionRate?: number | null;
+  totalRequests?: number;
+  successRequests?: number;
+  failedRequests?: number;
+  cancelledRequests?: number;
+  incompleteRequests?: number;
+  callerErrorRequests?: number;
+  points?: Array<{
+    bucket?: string;
+    label?: string;
+    totalRequests?: number;
+    successRequests?: number;
+    failedRequests?: number;
+    cancelledRequests?: number;
+    incompleteRequests?: number;
+    callerErrorRequests?: number;
+  }>;
+};
+
 export type CodexCostEfficiency = {
   estimatedCost?: number | null;
+  standardCost?: number | null;
   noCacheCost?: number | null;
   cacheSavings?: number | null;
+  tierPremium?: number | null;
   costPerSuccessfulRequest?: number | null;
+  coverageRate?: number | null;
+  points?: Array<{
+    bucket?: string;
+    label?: string;
+    estimatedCost?: number | null;
+    noCacheCost?: number | null;
+    cacheSavings?: number | null;
+    cachedTokenRate?: number;
+    cacheHitRequestRate?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedTokens?: number;
+    totalTokens?: number;
+  }>;
 };
 
 export type CodexPerformanceInsights = {
   latencyP50Ms?: number | null;
   latencyP95Ms?: number | null;
   latencyP99Ms?: number | null;
+  firstTokenP50Ms?: number | null;
+  firstTokenP95Ms?: number | null;
+  firstTokenP99Ms?: number | null;
+  outputThroughputP50?: number | null;
+  points?: Array<{
+    bucket?: string;
+    label?: string;
+    latencyP50Ms?: number | null;
+    latencyP95Ms?: number | null;
+    latencyP99Ms?: number | null;
+    firstTokenP50Ms?: number | null;
+    firstTokenP95Ms?: number | null;
+    firstTokenP99Ms?: number | null;
+    outputThroughputP50?: number | null;
+  }>;
+};
+
+export type CodexDiagnosticItem = {
+  name: string;
+  requestCount?: number;
+  successCount?: number;
+  errorCount?: number;
+  requestShare?: number;
+  errorRate?: number;
+  retryCount?: number;
+  retryRate?: number;
+  firstTokenP95Ms?: number | null;
+  latencyP95Ms?: number | null;
+  estimatedCost?: number | null;
+};
+
+export type CodexDiagnosticsResponse = {
+  dimension: string;
+  items: CodexDiagnosticItem[];
 };
 
 export type DashboardStats = {
@@ -61,8 +132,10 @@ export type DashboardStats = {
   rpm: number;
   tpm: number;
   codex_usage_summary?: CodexUsageSummary;
+  codex_health?: CodexHealthInsights;
   codex_cost_efficiency?: CodexCostEfficiency;
   codex_performance?: CodexPerformanceInsights;
+  codex_granularity?: string;
 };
 
 export type TrendPoint = {

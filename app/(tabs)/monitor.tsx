@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarChartCard } from '@/src/components/bar-chart-card';
+import { CodexReportCards } from '@/src/components/codex-report-cards';
 import { DonutChartCard } from '@/src/components/donut-chart-card';
 import {
   formatDisplayTime,
@@ -358,77 +359,8 @@ export default function MonitorScreen() {
               </View>
             )}
 
-            {isCodex && (stats?.codex_cost_efficiency || stats?.codex_performance) ? (
-              <Section
-                title="成本与效益估算"
-                subtitle="按官方 API 费率测算实际成本与缓存节省"
-                right={
-                  stats.codex_performance?.latencyP50Ms != null ? (
-                    <View style={{ alignSelf: 'center', backgroundColor: colors.mutedCard, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: 11, color: colors.subtext }}>
-                        P50 {formatLatencyMs(stats.codex_performance.latencyP50Ms)}
-                      </Text>
-                    </View>
-                  ) : undefined
-                }
-              >
-                <View style={{ gap: 8 }}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
-                      <Text style={{ fontSize: 11, color: '#8a8072' }}>实际估算</Text>
-                      <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency?.estimatedCost)}
-                      </Text>
-                      <Text style={{ marginTop: 4, fontSize: 11, color: colors.subtext }}>含输入输出与缓存</Text>
-                    </View>
-                    <View style={{ flex: 1, backgroundColor: colors.successBg, borderRadius: 14, padding: 12 }}>
-                      <Text style={{ fontSize: 11, color: colors.success, fontWeight: '600' }}>缓存节省</Text>
-                      <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.success }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency?.cacheSavings)}
-                      </Text>
-                      <Text style={{ marginTop: 4, fontSize: 11, color: colors.success }}>
-                        {stats.codex_cost_efficiency?.noCacheCost && stats.codex_cost_efficiency.cacheSavings != null && stats.codex_cost_efficiency.noCacheCost > 0
-                          ? `节省 ${((stats.codex_cost_efficiency.cacheSavings / stats.codex_cost_efficiency.noCacheCost) * 100).toFixed(1)}%`
-                          : '节省比例'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
-                      <Text style={{ fontSize: 11, color: '#8a8072' }}>无缓存预估</Text>
-                      <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency?.noCacheCost)}
-                      </Text>
-                      <Text style={{ marginTop: 4, fontSize: 11, color: colors.subtext }}>若无缓存时的总成本</Text>
-                    </View>
-                    <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
-                      <Text style={{ fontSize: 11, color: '#8a8072' }}>单请求均价</Text>
-                      <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                        {formatMoneyPrecise(stats.codex_cost_efficiency?.costPerSuccessfulRequest)}
-                      </Text>
-                      <Text style={{ marginTop: 4, fontSize: 11, color: colors.subtext }}>每次成功请求成本</Text>
-                    </View>
-                  </View>
-                  {stats.codex_performance?.latencyP50Ms != null ? (
-                    <View
-                      style={{
-                        marginTop: 4,
-                        paddingTop: 10,
-                        borderTopWidth: 1,
-                        borderTopColor: colors.border,
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, color: colors.subtext }}>响应耗时分位</Text>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>
-                        P50 {formatLatencyMs(stats.codex_performance.latencyP50Ms)}  ·  P95 {formatLatencyMs(stats.codex_performance.latencyP95Ms)}  ·  P99 {formatLatencyMs(stats.codex_performance.latencyP99Ms)}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </Section>
+            {isCodex ? (
+              <CodexReportCards stats={stats} rangeKey={rangeKey} />
             ) : null}
             <Section
               title="账号概览"
@@ -465,19 +397,19 @@ export default function MonitorScreen() {
               </Pressable>
             </Section>
 
-            {throughputPoints.length > 1 ? (
+            {!isCodex && throughputPoints.length > 1 ? (
               <LineTrendChart title="Token 吞吐" subtitle="当前时间范围内的 Token 变化趋势" points={throughputPoints} color="#a34d2d" formatValue={formatTokenDisplay} />
             ) : null}
 
-            {requestPoints.length > 1 ? (
+            {!isCodex && requestPoints.length > 1 ? (
               <LineTrendChart title="请求趋势" subtitle="当前时间范围内的请求变化趋势" points={requestPoints} color="#1d5f55" formatValue={formatCompactNumber} />
             ) : null}
 
-            {costPoints.length > 1 && costPoints.some((p) => p.value > 0) ? (
+            {!isCodex && costPoints.length > 1 && costPoints.some((p) => p.value > 0) ? (
               <LineTrendChart title="成本趋势" subtitle="当前时间范围内的成本变化趋势" points={costPoints} color="#7651c8" formatValue={formatMoney} />
             ) : null}
 
-            {totalInputTokens + totalOutputTokens + totalCacheReadTokens > 0 ? (
+            {!isCodex && totalInputTokens + totalOutputTokens + totalCacheReadTokens > 0 ? (
               <BarChartCard
                 title="Token 结构"
                 subtitle="输入、输出、缓存读取占比"
@@ -503,7 +435,7 @@ export default function MonitorScreen() {
               ]}
             />
 
-            {topModels.length > 0 ? (
+            {!isCodex && topModels.length > 0 ? (
               <BarChartCard
                 title="热点模型"
                 subtitle="当前时间范围内最活跃的模型"
