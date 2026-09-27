@@ -164,8 +164,8 @@ export default function MonitorScreen() {
   const range = useMemo(() => getDateRange(rangeKey), [rangeKey]);
 
   const statsQuery = useQuery({
-    queryKey: ['monitor-stats'],
-    queryFn: getDashboardStats,
+    queryKey: ['monitor-stats', rangeKey, range.start_date, range.end_date],
+    queryFn: () => getDashboardStats({ rangeKey, ...range }),
     enabled: hasAccount,
     staleTime: 60_000,
   });
@@ -183,7 +183,7 @@ export default function MonitorScreen() {
   });
   const trendQuery = useQuery({
     queryKey: ['monitor-trend', rangeKey, range.start_date, range.end_date, range.granularity],
-    queryFn: () => getDashboardTrend(range),
+    queryFn: () => getDashboardTrend({ rangeKey, ...range }),
     enabled: hasAccount,
     staleTime: 60_000,
     placeholderData: (previousData) => previousData,
@@ -305,26 +305,47 @@ export default function MonitorScreen() {
           </Section>
         ) : (
           <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <StatCard
-                title={`${rangeTitle} Token`}
-                value={formatTokenDisplay(rangeKey === '24h' ? selectedTokenTotal || stats?.today_tokens : selectedTokenTotal)}
-                detail={`输出 ${formatTokenDisplay(rangeKey === '24h' ? selectedOutputTotal || stats?.today_output_tokens : selectedOutputTotal)}`}
-              />
-              {isCodex ? (
+            {isCodex && stats?.codex_usage_summary ? (
+              <View style={{ gap: 10 }}>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <StatCard
+                    title={`${rangeTitle} 成功请求`}
+                    value={stats.codex_usage_summary.totalRequests || '0'}
+                    detail="筛选范围内"
+                  />
+                  <StatCard
+                    title={`${rangeTitle} 总 Token`}
+                    value={stats.codex_usage_summary.totalTokens || '0'}
+                    detail={`输入 ${stats.codex_usage_summary.inputTokens || '0'} / 输出 ${stats.codex_usage_summary.outputTokens || '0'}`}
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <StatCard
+                    title={`${rangeTitle} 缓存 Token`}
+                    value={stats.codex_usage_summary.cachedTokens || '0'}
+                    detail="缓存读取命中"
+                  />
+                  <StatCard
+                    title="平均耗时"
+                    value={stats.codex_usage_summary.averageLatencyMs || '0 ms'}
+                    detail={`网关总账单 ${formatMoney(stats.total_cost)}`}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', gap: 12 }}>
                 <StatCard
-                  title={`${rangeTitle} 请求`}
-                  value={formatCompactNumber(rangeKey === '24h' ? selectedRequestsTotal || stats?.today_requests : selectedRequestsTotal)}
-                  detail={`缓存 ${formatTokenDisplay(totalCacheReadTokens)} · 账单 ${formatMoney(stats?.total_cost ?? 0)}`}
+                  title={`${rangeTitle} Token`}
+                  value={formatTokenDisplay(rangeKey === '24h' ? selectedTokenTotal || stats?.today_tokens : selectedTokenTotal)}
+                  detail={`输出 ${formatTokenDisplay(rangeKey === '24h' ? selectedOutputTotal || stats?.today_output_tokens : selectedOutputTotal)}`}
                 />
-              ) : (
                 <StatCard
                   title={`${rangeTitle} 成本`}
                   value={formatMoney(rangeKey === '24h' ? selectedCostTotal || stats?.today_cost : selectedCostTotal)}
                   detail={stats?.tpm ? `TPM ${formatNumber(stats.tpm)}` : undefined}
                 />
-              )}
-            </View>
+              </View>
+            )}
             <Section
               title="账号概览"
               subtitle="总数、健康、异常和限流状态一览"

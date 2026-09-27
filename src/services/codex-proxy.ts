@@ -5,10 +5,12 @@ import type {
   AdminAccountExtra,
   AdminGroup,
   AdminSettings,
+  CodexUsageSummary,
   DashboardModelStats,
   DashboardStats,
   DashboardTrend,
   PaginatedData,
+  TrendPoint,
 } from '@/src/types/admin';
 
 type CodexQuotaWindow = {
@@ -109,7 +111,7 @@ function parseCompactNumber(value: unknown) {
   if (typeof value !== 'string') return undefined;
 
   const normalized = value.trim().replace(/,/g, '');
-  const match = normalized.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*([kmgt])?$/i);
+  const match = normalized.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*([kmgtb])?$/i);
   if (!match) return toNumber(normalized);
 
   const base = Number(match[1]);
@@ -117,6 +119,7 @@ function parseCompactNumber(value: unknown) {
     k: 1_000,
     m: 1_000_000,
     g: 1_000_000_000,
+    b: 1_000_000_000,
     t: 1_000_000_000_000,
   }[match[2]?.toLowerCase() ?? ''] ?? 1;
 
@@ -203,13 +206,54 @@ export async function getCodexProxySettings() {
   };
 }
 
-export async function getCodexProxyDashboardStats() {
-  const summary = await adminFetch<CodexDashboardSummary>('/api/admin/dashboard/summary?kind=usage');
+function getCodexRangeTime(rangeKey: '24h' | '7d' | '30d' = '7d') {
+  const now = new Date();
+  let startTime: string;
+  const endTime = now.toISOString();
+
+  if (rangeKey === '30d') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 29);
+    d.setHours(0, 0, 0, 0);
+    startTime = d.toISOString();
+  } else if (rangeKey === '7d') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    startTime = d.toISOString();
+  } else {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    startTime = d.toISOString();
+  }
+
+  return { startTime, endTime };
+}
+
+export async function getCodexProxyDashboardStats(params?: {
+  rangeKey?: '24h' | '7d' | '30d';
+  start_date?: string;
+  end_date?: string;
+}) {
+  const summaryPromise = adminFetch<CodexDashboardSummary>('/api/admin/dashboard/summary?kind=usage');
+
+  const { startTime, endTime } = getCodexRangeTime(params?.rangeKey);
+  const usageQuery = buildQuery({ startTime, endTime });
+  const usageSummaryPromise = adminFetch<CodexUsageSummary>(`/api/admin/usage/records/summary${usageQuery}`).catch(() => null);
+
+  const [summary, usageSummary] = await Promise.all([summaryPromise, usageSummaryPromise]);
+
   const cards = summary.cards ?? {};
   const credentials = cards.credentials ?? {};
   const traffic = cards.traffic ?? {};
   const tokens = cards.tokens ?? {};
   const totalAccounts = credentials.totalValue ?? 0;
+
+  const totalRequestsNum = parseCompactNumber(usageSummary?.totalRequests) ?? traffic.totalRequestsValue ?? parseCompactNumber(traffic.totalRequests) ?? 0;
+  const totalTokensNum = parseCompactNumber(usageSummary?.totalTokens) ?? tokens.totalTokensValue ?? parseCompactNumber(tokens.totalTokens) ?? 0;
+  const inputTokensNum = parseCompactNumber(usageSummary?.inputTokens) ?? 0;
+  const outputTokensNum = parseCompactNumber(usageSummary?.outputTokens) ?? 0;
+  const cachedTokensNum = parseCompactNumber(usageSummary?.cachedTokens) ?? 0;
 
   return {
     total_users: 0,
@@ -220,21 +264,97 @@ export async function getCodexProxyDashboardStats() {
     total_accounts: totalAccounts,
     normal_accounts: credentials.availableValue ?? 0,
     error_accounts: credentials.unavailableValue ?? 0,
-    total_requests: traffic.totalRequestsValue ?? parseCompactNumber(traffic.totalRequests) ?? 0,
+    total_requests: totalRequestsNum,
     total_cost: parseMoney(tokens.totalBillingAmountUsd),
-    total_tokens: tokens.totalTokensValue ?? parseCompactNumber(tokens.totalTokens) ?? 0,
-    today_requests: traffic.todayRequestsValue ?? 0,
+    total_tokens: totalTokensNum,
+    today_requests: totalRequestsNum,
     today_cost: 0,
-    today_tokens: tokens.todayTokensValue ?? 0,
-    today_input_tokens: 0,
-    today_output_tokens: 0,
-    today_cache_read_tokens: 0,
+    today_tokens: totalTokensNum,
+    today_input_tokens: inputTokensNum,
+    today_output_tokens: outputTokensNum,
+    today_cache_read_tokens: cachedTokensNum,
     rpm: 0,
     tpm: 0,
+    codex_usage_summary: usageSummary ?? undefined,
   } satisfies DashboardStats;
 }
 
-export async function getCodexProxyDashboardTrend() {
+export async function getCodexProxyDashboardTrend(params?: {
+  rangeKey?: '24h' | '7d' | '30d';
+  start_date?: string;
+  end_date?: string;
+}) {
+  const { startTime, endTime } = getCodexRangeTime(params?.rangeKey);
+
+  try {
+    const overviewQuery = buildQuery({ startTime, endTime });
+    const overview = await adminFetch<{
+      granularity?: string;
+      health?: {
+        points?: Array<{
+          bucket?: string;
+          totalRequests?: number;
+          successRequests?: number;
+          failedRequests?: number;
+        }>;
+      };
+      cost?: {
+        points?: Array<{
+          bucket?: string;
+          label?: string;
+          inputTokens?: number;
+          outputTokens?: number;
+          cachedTokens?: number;
+          totalTokens?: number;
+          estimatedCost?: number;
+        }>;
+      };
+    }>(`/api/admin/usage/insights/overview${overviewQuery}`);
+
+    const costPoints = overview.cost?.points ?? [];
+    const healthPoints = overview.health?.points ?? [];
+
+    if (costPoints.length > 0 || healthPoints.length > 0) {
+      const maxLen = Math.max(costPoints.length, healthPoints.length);
+      const points: TrendPoint[] = [];
+
+      for (let i = 0; i < maxLen; i++) {
+        const cp = costPoints[i];
+        const hp = healthPoints[i];
+        const date = cp?.bucket ?? hp?.bucket ?? cp?.label ?? '';
+        const requests = hp?.totalRequests ?? hp?.successRequests ?? 0;
+        const input_tokens = cp?.inputTokens ?? 0;
+        const output_tokens = cp?.outputTokens ?? 0;
+        const cache_read_tokens = cp?.cachedTokens ?? 0;
+        const total_tokens = cp?.totalTokens ?? (input_tokens + output_tokens);
+        const cost = cp?.estimatedCost ?? 0;
+
+        points.push({
+          date,
+          requests,
+          input_tokens,
+          output_tokens,
+          cache_creation_tokens: 0,
+          cache_read_tokens,
+          total_tokens,
+          cost,
+          actual_cost: cost,
+        });
+      }
+
+      if (points.length > 0) {
+        return {
+          start_date: points[0]?.date ?? '',
+          end_date: points.at(-1)?.date ?? '',
+          granularity: overview.granularity ?? 'day',
+          trend: points,
+        } satisfies DashboardTrend;
+      }
+    }
+  } catch {
+    // Fall back to standard dashboard trend
+  }
+
   const response = await adminFetch<CodexDashboardTrend>('/api/admin/dashboard/trend?kind=usage');
   const trend = (response.points ?? []).map((point) => ({
     date: point.bucket ?? point.time ?? '',

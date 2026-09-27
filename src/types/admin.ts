@@ -17,6 +17,16 @@ export type PaginatedData<T> = {
   pages: number;
 };
 
+export type CodexUsageSummary = {
+  totalRequests?: string;
+  inputTokens?: string;
+  outputTokens?: string;
+  cachedTokens?: string;
+  cacheWriteTokens?: string;
+  totalTokens?: string;
+  averageLatencyMs?: string;
+};
+
 export type DashboardStats = {
   total_users: number;
   today_new_users: number;
@@ -37,6 +47,7 @@ export type DashboardStats = {
   today_cache_read_tokens?: number;
   rpm: number;
   tpm: number;
+  codex_usage_summary?: CodexUsageSummary;
 };
 
 export type TrendPoint = {

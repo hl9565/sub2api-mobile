@@ -50,8 +50,15 @@ function buildQuery(params: Record<string, string | number | boolean | null | un
   return value ? `?${value}` : '';
 }
 
-export function getDashboardStats() {
-  if (isCodexProxyBackend()) return getCodexProxyDashboardStats();
+export function getDashboardStats(params?: {
+  rangeKey?: '24h' | '7d' | '30d';
+  start_date?: string;
+  end_date?: string;
+} | unknown) {
+  const safeParams = params && typeof params === 'object' && !('queryKey' in params)
+    ? (params as { rangeKey?: '24h' | '7d' | '30d'; start_date?: string; end_date?: string })
+    : undefined;
+  if (isCodexProxyBackend()) return getCodexProxyDashboardStats(safeParams);
   return adminFetch<DashboardStats>('/api/v1/admin/dashboard/stats');
 }
 
@@ -63,12 +70,13 @@ export function getAdminSettings() {
 export function getDashboardTrend(params: {
   start_date: string;
   end_date: string;
+  rangeKey?: '24h' | '7d' | '30d';
   granularity?: 'day' | 'hour';
   account_id?: number;
   group_id?: number;
   user_id?: number;
 }) {
-  if (isCodexProxyBackend()) return getCodexProxyDashboardTrend();
+  if (isCodexProxyBackend()) return getCodexProxyDashboardTrend(params);
   return adminFetch<DashboardTrend>(`/api/v1/admin/dashboard/trend${buildQuery(params)}`);
 }
 
