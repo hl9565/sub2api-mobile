@@ -157,21 +157,24 @@ app.get('/api/v1/keys', async (req, res) => {
   }
 });
 
-app.use('/api/v1/admin', async (req, res) => {
-  if (!upstreamBaseUrl) {
-    res.status(500).json({ code: 500, message: 'SUB2API_BASE_URL_NOT_CONFIGURED' });
+app.use(['/api/v1/admin', '/api/admin'], async (req, res) => {
+  const targetBaseUrl = (req.headers['x-target-base-url'] || upstreamBaseUrl || '').trim().replace(/\/$/, '');
+  const targetApiKey = (req.headers['x-api-key'] || adminApiKey || '').trim();
+
+  if (!targetBaseUrl) {
+    res.status(500).json({ code: 500, message: 'UPSTREAM_BASE_URL_NOT_CONFIGURED' });
     return;
   }
 
-  if (!adminApiKey) {
-    res.status(500).json({ code: 500, message: 'SUB2API_ADMIN_API_KEY_NOT_CONFIGURED' });
+  if (!targetApiKey) {
+    res.status(500).json({ code: 500, message: 'ADMIN_API_KEY_NOT_CONFIGURED' });
     return;
   }
 
-  const upstreamUrl = new URL(`${upstreamBaseUrl}${req.originalUrl}`);
+  const upstreamUrl = new URL(`${targetBaseUrl}${req.originalUrl}`);
   const headers = new Headers();
 
-  headers.set('x-api-key', adminApiKey);
+  headers.set('x-api-key', targetApiKey);
 
   const contentType = req.headers['content-type'];
   if (contentType) {
