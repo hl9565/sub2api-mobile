@@ -224,6 +224,7 @@ export default function MonitorScreen() {
   const selectedTokenTotal = trend.reduce((sum, item) => sum + item.total_tokens, 0);
   const selectedCostTotal = trend.reduce((sum, item) => sum + item.cost, 0);
   const selectedOutputTotal = trend.reduce((sum, item) => sum + item.output_tokens, 0);
+  const selectedRequestsTotal = trend.reduce((sum, item) => sum + item.requests, 0);
   const rangeTitle = RANGE_TITLE_MAP[rangeKey];
   const isLoading = statsQuery.isLoading || settingsQuery.isLoading || accountsQuery.isLoading;
   const hasError = Boolean(statsQuery.error || settingsQuery.error || accountsQuery.error || trendQuery.error || modelsQuery.error);
@@ -310,15 +311,19 @@ export default function MonitorScreen() {
                 value={formatTokenDisplay(rangeKey === '24h' ? selectedTokenTotal || stats?.today_tokens : selectedTokenTotal)}
                 detail={`输出 ${formatTokenDisplay(rangeKey === '24h' ? selectedOutputTotal || stats?.today_output_tokens : selectedOutputTotal)}`}
               />
-              <StatCard
-                title={config.backend === 'codex-proxy-rs' ? '总计费账单' : `${rangeTitle} 成本`}
-                value={formatMoney(config.backend === 'codex-proxy-rs' ? (stats?.total_cost ?? 0) : (rangeKey === '24h' ? selectedCostTotal || stats?.today_cost : selectedCostTotal))}
-                detail={
-                  config.backend === 'codex-proxy-rs'
-                    ? '网关累计美元消费'
-                    : (stats?.tpm ? `TPM ${formatNumber(stats.tpm)}` : undefined)
-                }
-              />
+              {isCodex ? (
+                <StatCard
+                  title={`${rangeTitle} 请求`}
+                  value={formatCompactNumber(rangeKey === '24h' ? selectedRequestsTotal || stats?.today_requests : selectedRequestsTotal)}
+                  detail={`缓存 ${formatTokenDisplay(totalCacheReadTokens)} · 账单 ${formatMoney(stats?.total_cost ?? 0)}`}
+                />
+              ) : (
+                <StatCard
+                  title={`${rangeTitle} 成本`}
+                  value={formatMoney(rangeKey === '24h' ? selectedCostTotal || stats?.today_cost : selectedCostTotal)}
+                  detail={stats?.tpm ? `TPM ${formatNumber(stats.tpm)}` : undefined}
+                />
+              )}
             </View>
             <Section
               title="账号概览"
