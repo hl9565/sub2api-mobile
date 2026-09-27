@@ -5,7 +5,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarChartCard } from '@/src/components/bar-chart-card';
-import { formatTokenValue } from '@/src/lib/formatters';
+import { formatDisplayTime, formatLocalDate, formatPointLabel, formatTokenValue } from '@/src/lib/formatters';
 import { DonutChartCard } from '@/src/components/donut-chart-card';
 import { LineTrendChart } from '@/src/components/line-trend-chart';
 import { getAdminSettings, getDashboardModels, getDashboardStats, getDashboardTrend, listAccounts } from '@/src/services/admin';
@@ -85,11 +85,9 @@ function getDateRange(rangeKey: RangeKey) {
     start.setDate(end.getDate() - 6);
   }
 
-  const toDate = (value: Date) => value.toISOString().slice(0, 10);
-
   return {
-    start_date: toDate(start),
-    end_date: toDate(end),
+    start_date: formatLocalDate(start),
+    end_date: formatLocalDate(end),
     granularity: rangeKey === '24h' ? ('hour' as const) : ('day' as const),
   };
 }
@@ -114,14 +112,6 @@ function formatCompactNumber(value?: number) {
 function formatTokenDisplay(value?: number) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--';
   return formatTokenValue(value);
-}
-
-function getPointLabel(value: string, rangeKey: RangeKey) {
-  if (rangeKey === '24h') {
-    return value.slice(11, 13);
-  }
-
-  return value.slice(5, 10);
 }
 
 function getErrorMessage(error: unknown) {
@@ -168,6 +158,7 @@ function StatCard({ title, value, detail }: { title: string; value: string; deta
 
 export default function MonitorScreen() {
   const config = useSnapshot(adminConfigState);
+  const isCodex = config.backend === 'codex-proxy-rs';
   const hasAccount = hasAuthenticatedAdminSession(config);
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const range = useMemo(() => getDateRange(rangeKey), [rangeKey]);
@@ -238,15 +229,15 @@ export default function MonitorScreen() {
   const hasError = Boolean(statsQuery.error || settingsQuery.error || accountsQuery.error || trendQuery.error || modelsQuery.error);
 
   const throughputPoints = useMemo(
-    () => trend.map((item) => ({ label: getPointLabel(item.date, rangeKey), value: item.total_tokens })),
+    () => trend.map((item) => ({ label: formatPointLabel(item.date, rangeKey), value: item.total_tokens })),
     [rangeKey, trend]
   );
   const requestPoints = useMemo(
-    () => trend.map((item) => ({ label: getPointLabel(item.date, rangeKey), value: item.requests })),
+    () => trend.map((item) => ({ label: formatPointLabel(item.date, rangeKey), value: item.requests })),
     [rangeKey, trend]
   );
   const costPoints = useMemo(
-    () => trend.map((item) => ({ label: getPointLabel(item.date, rangeKey), value: item.cost })),
+    () => trend.map((item) => ({ label: formatPointLabel(item.date, rangeKey), value: item.cost })),
     [rangeKey, trend]
   );
   const totalInputTokens = useMemo(() => trend.reduce((sum, item) => sum + item.input_tokens, 0), [trend]);
@@ -416,7 +407,10 @@ export default function MonitorScreen() {
               />
             ) : null}
 
-            <Section title="趋势摘要" subtitle="最近几个统计点的请求、Token 和成本变化">
+            <Section
+              title="趋势摘要"
+              subtitle={isCodex ? '最近几个统计点的请求、Token 和缓存变化' : '最近几个统计点的请求、Token 和成本变化'}
+            >
               {latestTrendPoints.length === 0 ? (
                 <Text style={{ fontSize: 14, color: colors.subtext }}>当前时间范围没有趋势数据。</Text>
               ) : (
@@ -424,19 +418,21 @@ export default function MonitorScreen() {
                   <View style={{ gap: 10 }}>
                     {latestTrendPoints.map((point) => (
                       <View key={point.date} style={{ backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>{point.date}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>{formatDisplayTime(point.date)}</Text>
                         <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 11, color: '#8a8072' }}>请求</Text>
                             <Text style={{ marginTop: 4, fontSize: 15, fontWeight: '700', color: colors.text }}>{formatCompactNumber(point.requests)}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 11, color: '#8a8072' }}>Token</Text>
+                            <Text style={{ fontSize: 11, color: '#8a8072' }}>{isCodex ? '总 Token' : 'Token'}</Text>
                             <Text style={{ marginTop: 4, fontSize: 15, fontWeight: '700', color: colors.text }}>{formatTokenDisplay(point.total_tokens)}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 11, color: '#8a8072' }}>成本</Text>
-                            <Text style={{ marginTop: 4, fontSize: 15, fontWeight: '700', color: colors.text }}>{formatMoney(point.cost)}</Text>
+                            <Text style={{ fontSize: 11, color: '#8a8072' }}>{isCodex ? '缓存 Token' : '成本'}</Text>
+                            <Text style={{ marginTop: 4, fontSize: 15, fontWeight: '700', color: colors.text }}>
+                              {isCodex ? formatTokenDisplay(point.cache_read_tokens) : formatMoney(point.cost)}
+                            </Text>
                           </View>
                         </View>
                       </View>

@@ -6,6 +6,7 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LineTrendChart } from '@/src/components/line-trend-chart';
+import { formatDisplayTime, formatLocalDate, formatPointLabel } from '@/src/lib/formatters';
 import { getDashboardSnapshot, getUsageStats, getUser, listUserApiKeys, updateUserBalance, updateUserStatus } from '@/src/services/admin';
 import type { AdminApiKey, BalanceOperation } from '@/src/types/admin';
 
@@ -42,11 +43,9 @@ function getDateRange(rangeKey: RangeKey) {
     start.setDate(end.getDate() - 6);
   }
 
-  const toDate = (value: Date) => value.toISOString().slice(0, 10);
-
   return {
-    start_date: toDate(start),
-    end_date: toDate(end),
+    start_date: formatLocalDate(start),
+    end_date: formatLocalDate(end),
     granularity: rangeKey === '24h' ? ('hour' as const) : ('day' as const),
   };
 }
@@ -96,18 +95,7 @@ function formatQuotaUsage(quotaUsed?: number | null, quota?: number | null) {
 }
 
 function formatTime(value?: string | null) {
-  if (!value) return '--';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  const hours = `${date.getHours()}`.padStart(2, '0');
-  const minutes = `${date.getMinutes()}`.padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  return formatDisplayTime(value);
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -323,7 +311,7 @@ export default function UserDetailScreen() {
     });
   }, [apiKeys, searchText]);
   const trendPoints = (usageSnapshotQuery.data?.trend ?? []).map((item) => ({
-    label: rangeKey === '24h' ? item.date.slice(11, 13) : item.date.slice(5, 10),
+    label: formatPointLabel(item.date, rangeKey),
     value: item.total_tokens,
   }));
 

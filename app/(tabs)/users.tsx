@@ -5,7 +5,7 @@ import { FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDebouncedValue } from '@/src/hooks/use-debounced-value';
-import { formatCompactNumber, formatTokenValue } from '@/src/lib/formatters';
+import { formatCompactNumber, formatLocalDate, formatTokenValue } from '@/src/lib/formatters';
 import { queryClient } from '@/src/lib/query-client';
 import { getUser, getUsageStats, listUserApiKeys, listUsers } from '@/src/services/admin';
 import { adminConfigState, hasAuthenticatedAdminSession } from '@/src/store/admin-config';
@@ -41,11 +41,9 @@ function getDateRange(rangeKey: RangeKey) {
     start.setDate(end.getDate() - 6);
   }
 
-  const toDate = (value: Date) => value.toISOString().slice(0, 10);
-
   return {
-    start_date: toDate(start),
-    end_date: toDate(end),
+    start_date: formatLocalDate(start),
+    end_date: formatLocalDate(end),
     granularity: rangeKey === '24h' ? ('hour' ) : ('day' ),
   };
 }

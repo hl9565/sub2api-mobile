@@ -24,14 +24,35 @@ export function formatTokenValue(value: number) {
   return formatCompactNumber(value, 1);
 }
 
+export function parseDateTime(value?: string | null): Date | null {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function formatDisplayTime(value?: string | null) {
   if (!value) {
     return '--';
   }
 
-  const date = new Date(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
 
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateTime(value);
+  if (!date) {
     return value;
   }
 
@@ -43,3 +64,23 @@ export function formatDisplayTime(value?: string | null) {
 
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
+
+export function formatPointLabel(value: string, rangeKey: string) {
+  const date = parseDateTime(value);
+  if (!date) return value;
+
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+
+  if (rangeKey === '24h') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return `${hours}:${minutes}`;
+    }
+    return `${month}-${day}`;
+  }
+
+  return `${month}-${day}`;
+}
+
