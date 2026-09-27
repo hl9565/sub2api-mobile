@@ -136,6 +136,7 @@ export type DashboardStats = {
   codex_cost_efficiency?: CodexCostEfficiency;
   codex_performance?: CodexPerformanceInsights;
   codex_granularity?: string;
+  codex_overview_error?: string | null;
 };
 
 export type TrendPoint = {

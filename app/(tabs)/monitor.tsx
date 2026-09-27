@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -204,12 +204,28 @@ export default function MonitorScreen() {
     placeholderData: (previousData) => previousData,
   });
 
-  function refetchAll() {
-    statsQuery.refetch();
-    settingsQuery.refetch();
-    accountsQuery.refetch();
-    trendQuery.refetch();
-    modelsQuery.refetch();
+  const queryClient = useQueryClient();
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  async function refetchAll() {
+    await Promise.all([
+      statsQuery.refetch(),
+      settingsQuery.refetch(),
+      accountsQuery.refetch(),
+      trendQuery.refetch(),
+      modelsQuery.refetch(),
+      queryClient.refetchQueries({ queryKey: ['codex-diagnostics'] }),
+      queryClient.invalidateQueries({ queryKey: ['codex-diagnostics'] }),
+    ]);
+  }
+
+  async function handleRefresh() {
+    setPullRefreshing(true);
+    try {
+      await refetchAll();
+    } finally {
+      setPullRefreshing(false);
+    }
   }
 
   const stats = statsQuery.data;
@@ -252,7 +268,15 @@ export default function MonitorScreen() {
   const totalInputTokens = useMemo(() => trend.reduce((sum, item) => sum + item.input_tokens, 0), [trend]);
   const totalOutputTokens = useMemo(() => trend.reduce((sum, item) => sum + item.output_tokens, 0), [trend]);
   const totalCacheReadTokens = useMemo(() => trend.reduce((sum, item) => sum + item.cache_read_tokens, 0), [trend]);
-  const isRefreshing = statsQuery.isRefetching || settingsQuery.isRefetching || accountsQuery.isRefetching || trendQuery.isRefetching || modelsQuery.isRefetching;
+  const isDiagnosticsFetching = queryClient.isFetching({ queryKey: ['codex-diagnostics'] }) > 0;
+  const isRefreshing =
+    pullRefreshing ||
+    statsQuery.isRefetching ||
+    settingsQuery.isRefetching ||
+    accountsQuery.isRefetching ||
+    trendQuery.isRefetching ||
+    modelsQuery.isRefetching ||
+    isDiagnosticsFetching;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.page }}>
@@ -260,7 +284,7 @@ export default function MonitorScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 110 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refetchAll()} tintColor="#1d5f55" />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void handleRefresh()} tintColor="#1d5f55" />}
       >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
           <View style={{ flex: 1 }}>

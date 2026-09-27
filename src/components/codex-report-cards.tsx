@@ -128,15 +128,37 @@ export function CodexReportCards({
   }, [cost?.points, rangeKey]);
 
   // Health metrics
-  const successRateText = health?.successRate != null ? `${(health.successRate * 100).toFixed(0)}%` : '100%';
-  const completionRateText = health?.completionRate != null ? `${(health.completionRate * 100).toFixed(0)}%` : '100%';
-  const abnormalCount = (health?.cancelledRequests ?? 0) + (health?.incompleteRequests ?? 0);
+  const hasHealthData = health?.successRate != null;
+  const successRateText = health?.successRate != null ? `${(health.successRate * 100).toFixed(0)}%` : '不可用';
+  const completionRateText = health?.completionRate != null ? `${(health.completionRate * 100).toFixed(0)}%` : '不可用';
+  const hasAbnormalData = health != null && (health.cancelledRequests != null || health.incompleteRequests != null);
+  const abnormalCount = hasAbnormalData ? (health.cancelledRequests ?? 0) + (health.incompleteRequests ?? 0) : null;
+  const abnormalText = abnormalCount != null ? `${abnormalCount}` : '不可用';
 
   // Diagnostic items
   const diagnosticItems = diagnosticsQuery.data?.items ?? [];
 
   return (
     <View style={{ gap: 12 }}>
+      {/* 概览服务异常提示 */}
+      {stats?.codex_overview_error ? (
+        <View
+          style={{
+            backgroundColor: colors.dangerBg,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '600', flex: 1 }}>
+            概览服务暂不可用 ({stats.codex_overview_error})，相关洞察指标已标注为不可用
+          </Text>
+        </View>
+      ) : null}
+
       {/* 报表切换 Segmented Tabs */}
       <View
         style={{
@@ -190,20 +212,20 @@ export function CodexReportCards({
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
             <Text style={{ fontSize: 11, color: '#8a8072' }}>服务成功率</Text>
-            <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.success }}>
+            <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: hasHealthData ? colors.success : colors.subtext }}>
               {successRateText}
             </Text>
           </View>
           <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
             <Text style={{ fontSize: 11, color: '#8a8072' }}>完成率</Text>
-            <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
+            <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: health?.completionRate != null ? colors.text : colors.subtext }}>
               {completionRateText}
             </Text>
           </View>
           <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
             <Text style={{ fontSize: 11, color: '#8a8072' }}>非正常结束</Text>
-            <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: abnormalCount > 0 ? colors.warning : colors.text }}>
-              {abnormalCount}
+            <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: abnormalCount != null && abnormalCount > 0 ? colors.warning : (abnormalCount != null ? colors.text : colors.subtext) }}>
+              {abnormalText}
             </Text>
           </View>
         </View>
@@ -228,27 +250,47 @@ export function CodexReportCards({
           title="热点诊断"
           subtitle={`按${DIMENSION_TABS.find((t) => t.key === dimension)?.label ?? '维度'}聚合`}
           right={
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              {DIMENSION_TABS.map((tab) => {
-                const active = tab.key === dimension;
-                return (
-                  <Pressable
-                    key={tab.key}
-                    style={{
-                      backgroundColor: active ? colors.primary : colors.mutedCard,
-                      borderRadius: 8,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                    }}
-                    onPress={() => setDimension(tab.key)}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: active ? '#fff' : colors.text }}>
-                      {tab.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '65%' }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {DIMENSION_TABS.map((tab) => {
+                  const active = tab.key === dimension;
+                  return (
+                    <Pressable
+                      key={tab.key}
+                      style={{
+                        backgroundColor: active ? colors.primary : colors.mutedCard,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                      }}
+                      onPress={() => setDimension(tab.key)}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: active ? '#fff' : colors.text }}>
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Pressable
+                style={{
+                  backgroundColor: colors.mutedCard,
+                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  paddingVertical: 5,
+                  minWidth: 36,
+                  alignItems: 'center',
+                }}
+                disabled={diagnosticsQuery.isFetching}
+                onPress={() => void diagnosticsQuery.refetch()}
+              >
+                {diagnosticsQuery.isFetching ? (
+                  <ActivityIndicator color={colors.primary} size="small" style={{ transform: [{ scale: 0.65 }] }} />
+                ) : (
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary }}>刷新</Text>
+                )}
+              </Pressable>
+            </View>
           }
         >
           {diagnosticsQuery.isLoading ? (
@@ -256,12 +298,47 @@ export function CodexReportCards({
               <ActivityIndicator color={colors.primary} size="small" />
               <Text style={{ marginTop: 8, fontSize: 12, color: colors.subtext }}>正在加载诊断数据...</Text>
             </View>
+          ) : diagnosticsQuery.isError && diagnosticItems.length === 0 ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center', gap: 10 }}>
+              <View style={{ backgroundColor: colors.dangerBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, width: '100%' }}>
+                <Text style={{ fontSize: 13, color: colors.danger, fontWeight: '600', textAlign: 'center' }}>
+                  诊断数据加载失败: {diagnosticsQuery.error instanceof Error ? diagnosticsQuery.error.message : '请检查网络或服务权限'}
+                </Text>
+              </View>
+              <Pressable
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  opacity: diagnosticsQuery.isFetching ? 0.7 : 1,
+                }}
+                disabled={diagnosticsQuery.isFetching}
+                onPress={() => void diagnosticsQuery.refetch()}
+              >
+                {diagnosticsQuery.isFetching ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>重试诊断</Text>
+                )}
+              </Pressable>
+            </View>
           ) : diagnosticItems.length === 0 ? (
             <View style={{ paddingVertical: 16, alignItems: 'center' }}>
               <Text style={{ fontSize: 13, color: colors.subtext }}>当前维度暂无诊断数据</Text>
             </View>
           ) : (
             <View style={{ gap: 8 }}>
+              {diagnosticsQuery.isError && diagnosticItems.length > 0 ? (
+                <View style={{ backgroundColor: colors.dangerBg, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: colors.danger, flex: 1 }}>
+                    刷新失败: {diagnosticsQuery.error instanceof Error ? diagnosticsQuery.error.message : '请重试'}
+                  </Text>
+                  <Pressable onPress={() => void diagnosticsQuery.refetch()} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>重试</Text>
+                  </Pressable>
+                </View>
+              ) : null}
               <View style={{ flexDirection: 'row', paddingHorizontal: 6, paddingBottom: 4 }}>
                 <Text style={{ flex: 1.8, fontSize: 11, color: '#8a8072', fontWeight: '600' }}>
                   {DIMENSION_TABS.find((t) => t.key === dimension)?.label ?? '维度'}
@@ -411,8 +488,8 @@ export function CodexReportCards({
               </View>
               <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
                 <Text style={{ fontSize: 11, color: '#8a8072' }}>层级溢价</Text>
-                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.warning }}>
-                  {formatMoneyPrecise(cost?.tierPremium ?? 0)}
+                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: cost?.tierPremium != null ? colors.warning : colors.subtext }}>
+                  {formatMoneyPrecise(cost?.tierPremium)}
                 </Text>
               </View>
             </View>
@@ -426,14 +503,14 @@ export function CodexReportCards({
               </View>
               <View style={{ flex: 1, backgroundColor: colors.mutedCard, borderRadius: 14, padding: 12 }}>
                 <Text style={{ fontSize: 11, color: '#8a8072' }}>费用覆盖</Text>
-                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: colors.text }}>
-                  {cost?.coverageRate != null ? `${Math.round(cost.coverageRate * 100)}%` : '100%'}
+                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '700', color: cost?.coverageRate != null ? colors.text : colors.subtext }}>
+                  {cost?.coverageRate != null ? `${Math.round(cost.coverageRate * 100)}%` : '不可用'}
                 </Text>
               </View>
             </View>
           </View>
 
-          {costPoints.length > 1 && costPoints.some((p) => p.value > 0) ? (
+          {costPoints.length > 1 ? (
             <View style={{ marginTop: 12 }}>
               <LineTrendChart
                 title="实际费用趋势"

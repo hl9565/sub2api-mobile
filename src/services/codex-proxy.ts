@@ -326,7 +326,11 @@ export async function getCodexProxyDashboardStats(params?: {
   const { startTime, endTime } = getCodexRangeTime(params?.rangeKey);
   const usageQuery = buildQuery({ startTime, endTime });
   const usageSummaryPromise = adminFetch<CodexUsageSummary>(`/api/admin/usage/records/summary${usageQuery}`).catch(() => null);
-  const overviewPromise = adminFetch<CodexOverviewResponse>(`/api/admin/usage/insights/overview${usageQuery}`).catch(() => null);
+  let overviewError: string | null = null;
+  const overviewPromise = adminFetch<CodexOverviewResponse>(`/api/admin/usage/insights/overview${usageQuery}`).catch((err) => {
+    overviewError = err instanceof Error ? err.message : String(err || '概览接口异常 (503)');
+    return null;
+  });
 
   const [summary, usageSummary, overview] = await Promise.all([
     summaryPromise,
@@ -439,6 +443,7 @@ export async function getCodexProxyDashboardStats(params?: {
     codex_cost_efficiency: costEfficiency,
     codex_performance: performance,
     codex_granularity: overview?.granularity,
+    codex_overview_error: overviewError,
   } satisfies DashboardStats;
 }
 
