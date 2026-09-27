@@ -1,26 +1,39 @@
-export function formatCompactNumber(value: number, digits = 1) {
-  const abs = Math.abs(value);
+export function parseFlexibleNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const cleaned = value.trim().replace(/[^0-9.-]/g, '');
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+}
+
+export function formatCompactNumber(value: number | string | null | undefined, digits = 1) {
+  const num = parseFlexibleNumber(value) ?? 0;
+  const abs = Math.abs(num);
 
   if (abs >= 1_000_000_000_000) {
-    return `${(value / 1_000_000_000_000).toFixed(digits).replace(/\.0$/, '')}T`;
+    return `${(num / 1_000_000_000_000).toFixed(digits).replace(/\.0$/, '')}T`;
   }
 
   if (abs >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(digits).replace(/\.0$/, '')}B`;
+    return `${(num / 1_000_000_000).toFixed(digits).replace(/\.0$/, '')}B`;
   }
 
   if (abs >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(digits).replace(/\.0$/, '')}M`;
+    return `${(num / 1_000_000).toFixed(digits).replace(/\.0$/, '')}M`;
   }
 
   if (abs >= 1_000) {
-    return `${(value / 1_000).toFixed(digits).replace(/\.0$/, '')}K`;
+    return `${(num / 1_000).toFixed(digits).replace(/\.0$/, '')}K`;
   }
 
-  return `${Math.round(value)}`;
+  return `${Math.round(num)}`;
 }
 
-export function formatTokenValue(value: number) {
+export function formatTokenValue(value: number | string | null | undefined) {
   return formatCompactNumber(value, 1);
 }
 
@@ -84,18 +97,20 @@ export function formatPointLabel(value: string, rangeKey: string) {
   return `${month}-${day}`;
 }
 
-export function formatLatencyMs(ms?: number | null) {
-  if (ms == null || Number.isNaN(ms)) return '--';
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  return `${(ms / 60_000).toFixed(1)} min`;
+export function formatLatencyMs(ms?: number | string | null) {
+  const num = parseFlexibleNumber(ms);
+  if (num == null) return '--';
+  if (num < 1000) return `${Math.round(num)} ms`;
+  if (num < 60_000) return `${(num / 1000).toFixed(1)} s`;
+  return `${(num / 60_000).toFixed(1)} min`;
 }
 
-export function formatMoneyPrecise(value?: number | null) {
-  if (typeof value !== 'number' || Number.isNaN(value) || value == null) return '--';
-  if (value > 0 && value < 0.01) {
-    return `$${value.toFixed(4)}`;
+export function formatMoneyPrecise(value?: number | string | null) {
+  const num = parseFlexibleNumber(value);
+  if (num == null) return '--';
+  if (num > 0 && num < 0.01) {
+    return `$${num.toFixed(4)}`;
   }
-  return `$${value.toFixed(2)}`;
+  return `$${num.toFixed(2)}`;
 }
 

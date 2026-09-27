@@ -355,7 +355,15 @@ export async function getCodexProxyDashboardStats(params?: {
     cancelledRequests: parseFlexibleNumber(overview.health.cancelledRequests) ?? undefined,
     incompleteRequests: parseFlexibleNumber(overview.health.incompleteRequests) ?? undefined,
     callerErrorRequests: parseFlexibleNumber(overview.health.callerErrorRequests) ?? undefined,
-    points: overview.health.points,
+    points: overview.health.points?.map((p) => ({
+      ...p,
+      totalRequests: parseFlexibleNumber(p.totalRequests) ?? 0,
+      successRequests: parseFlexibleNumber(p.successRequests) ?? 0,
+      failedRequests: parseFlexibleNumber(p.failedRequests) ?? 0,
+      cancelledRequests: parseFlexibleNumber(p.cancelledRequests) ?? 0,
+      incompleteRequests: parseFlexibleNumber(p.incompleteRequests) ?? 0,
+      callerErrorRequests: parseFlexibleNumber(p.callerErrorRequests) ?? 0,
+    })),
   } : undefined;
 
   const coverage = overview?.cost?.coverage;
@@ -370,7 +378,18 @@ export async function getCodexProxyDashboardStats(params?: {
     tierPremium: parseFlexibleNumber(overview.cost.tierPremium),
     costPerSuccessfulRequest: parseFlexibleNumber(overview.cost.costPerSuccessfulRequest),
     coverageRate,
-    points: overview.cost.points,
+    points: overview.cost.points?.map((p) => ({
+      ...p,
+      estimatedCost: parseFlexibleNumber(p.estimatedCost) ?? 0,
+      noCacheCost: parseFlexibleNumber(p.noCacheCost) ?? 0,
+      cacheSavings: parseFlexibleNumber(p.cacheSavings) ?? 0,
+      cachedTokenRate: parseFlexibleNumber(p.cachedTokenRate) ?? 0,
+      cacheHitRequestRate: parseFlexibleNumber(p.cacheHitRequestRate) ?? 0,
+      inputTokens: parseFlexibleNumber(p.inputTokens) ?? 0,
+      outputTokens: parseFlexibleNumber(p.outputTokens) ?? 0,
+      cachedTokens: parseFlexibleNumber(p.cachedTokens) ?? 0,
+      totalTokens: parseFlexibleNumber(p.totalTokens) ?? 0,
+    })),
   } : undefined;
 
   const performance: CodexPerformanceInsights | undefined = overview?.performance ? {
@@ -381,7 +400,16 @@ export async function getCodexProxyDashboardStats(params?: {
     firstTokenP95Ms: parseFlexibleNumber(overview.performance.firstTokenP95Ms),
     firstTokenP99Ms: parseFlexibleNumber(overview.performance.firstTokenP99Ms),
     outputThroughputP50: parseFlexibleNumber(overview.performance.outputThroughputP50),
-    points: overview.performance.points,
+    points: overview.performance.points?.map((p) => ({
+      ...p,
+      latencyP50Ms: parseFlexibleNumber(p.latencyP50Ms),
+      latencyP95Ms: parseFlexibleNumber(p.latencyP95Ms),
+      latencyP99Ms: parseFlexibleNumber(p.latencyP99Ms),
+      firstTokenP50Ms: parseFlexibleNumber(p.firstTokenP50Ms),
+      firstTokenP95Ms: parseFlexibleNumber(p.firstTokenP95Ms),
+      firstTokenP99Ms: parseFlexibleNumber(p.firstTokenP99Ms),
+      outputThroughputP50: parseFlexibleNumber(p.outputThroughputP50),
+    })),
   } : undefined;
 
   const estimatedCost = parseFlexibleNumber(overview?.cost?.estimatedCost) ?? 0;
@@ -421,7 +449,23 @@ export async function getCodexProxyDiagnostics(params?: {
   const { startTime, endTime } = getCodexRangeTime(params?.rangeKey);
   const dimension = params?.dimension ?? 'model';
   const query = buildQuery({ startTime, endTime, dimension });
-  return adminFetch<CodexDiagnosticsResponse>(`/api/admin/usage/insights/diagnostics${query}`);
+  const res = await adminFetch<CodexDiagnosticsResponse>(`/api/admin/usage/insights/diagnostics${query}`);
+  return {
+    dimension: res.dimension ?? dimension,
+    items: (res.items ?? []).map((item) => ({
+      ...item,
+      requestCount: parseFlexibleNumber(item.requestCount) ?? 0,
+      successCount: parseFlexibleNumber(item.successCount) ?? 0,
+      errorCount: parseFlexibleNumber(item.errorCount) ?? 0,
+      requestShare: parseFlexibleNumber(item.requestShare) ?? 0,
+      errorRate: parseFlexibleNumber(item.errorRate) ?? 0,
+      retryCount: parseFlexibleNumber(item.retryCount) ?? 0,
+      retryRate: parseFlexibleNumber(item.retryRate) ?? 0,
+      firstTokenP95Ms: parseFlexibleNumber(item.firstTokenP95Ms),
+      latencyP95Ms: parseFlexibleNumber(item.latencyP95Ms),
+      estimatedCost: parseFlexibleNumber(item.estimatedCost),
+    })),
+  } satisfies CodexDiagnosticsResponse;
 }
 
 export async function getCodexProxyDashboardTrend(params?: {

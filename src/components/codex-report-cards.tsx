@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { LineTrendChart } from '@/src/components/line-trend-chart';
-import { formatLatencyMs, formatMoneyPrecise, formatPointLabel } from '@/src/lib/formatters';
+import { formatLatencyMs, formatMoneyPrecise, formatPointLabel, parseFlexibleNumber } from '@/src/lib/formatters';
 import { getDashboardDiagnostics } from '@/src/services/admin';
 import type { DashboardStats } from '@/src/types/admin';
 
@@ -103,14 +103,15 @@ export function CodexReportCards({
   const healthPoints = useMemo(() => {
     return (health?.points ?? []).map((point) => ({
       label: formatPointLabel(point.bucket || point.label || '', rangeKey),
-      value: point.totalRequests ?? point.successRequests ?? 0,
+      value: parseFlexibleNumber(point.totalRequests ?? point.successRequests) ?? 0,
     }));
   }, [health?.points, rangeKey]);
 
   // Performance chart points
   const latencyPoints = useMemo(() => {
     return (performance?.points ?? []).map((point) => {
-      const ms = perfTab === 'firstToken' ? point.firstTokenP95Ms : point.latencyP95Ms;
+      const rawMs = perfTab === 'firstToken' ? point.firstTokenP95Ms : point.latencyP95Ms;
+      const ms = parseFlexibleNumber(rawMs);
       return {
         label: formatPointLabel(point.bucket || point.label || '', rangeKey),
         value: ms != null && ms > 0 ? Number((ms / 1000).toFixed(2)) : 0,
@@ -122,7 +123,7 @@ export function CodexReportCards({
   const costPoints = useMemo(() => {
     return (cost?.points ?? []).map((point) => ({
       label: formatPointLabel(point.bucket || point.label || '', rangeKey),
-      value: point.estimatedCost ?? 0,
+      value: parseFlexibleNumber(point.estimatedCost) ?? 0,
     }));
   }, [cost?.points, rangeKey]);
 

@@ -28,9 +28,10 @@ export function LineTrendChart({
   const [chartWidth, setChartWidth] = useState(320);
   const width = 320;
   const height = compact ? 104 : 144;
-  const maxValue = Math.max(...points.map((point) => point.value), 1);
-  const minValue = Math.min(...points.map((point) => point.value), 0);
-  const range = Math.max(maxValue - minValue, 1);
+  const values = points.map((point) => (typeof point.value === 'number' && Number.isFinite(point.value) ? point.value : Number(point.value) || 0));
+  const maxValue = values.length > 0 ? Math.max(...values, 0) : 1;
+  const minValue = values.length > 0 ? Math.min(...values, 0) : 0;
+  const range = maxValue > minValue ? maxValue - minValue : (maxValue > 0 ? maxValue : 1);
   const gradientId = useMemo(
     () => `trendFill-${title.replace(/[^a-zA-Z0-9_-]/g, '')}-${compact ? 'compact' : 'full'}`,
     [compact, title]
@@ -38,8 +39,9 @@ export function LineTrendChart({
 
   const coordinates = useMemo(() => {
     return points.map((point, index) => {
+      const val = typeof point.value === 'number' && Number.isFinite(point.value) ? point.value : Number(point.value) || 0;
       const x = (index / Math.max(points.length - 1, 1)) * width;
-      const y = height - ((point.value - minValue) / range) * (height - 18) - 12;
+      const y = height - ((val - minValue) / range) * (height - 18) - 12;
       return { x, y };
     });
   }, [height, minValue, points, range, width]);
@@ -51,7 +53,8 @@ export function LineTrendChart({
   const area = `${line} L ${width} ${height} L 0 ${height} Z`;
   const latest = points[points.length - 1]?.value ?? 0;
   const currentPoint = selectedIndex !== null ? points[selectedIndex] : null;
-  const displayValue = currentPoint ? currentPoint.value : latest;
+  const rawDisplayValue = currentPoint ? currentPoint.value : latest;
+  const displayValue = typeof rawDisplayValue === 'number' && Number.isFinite(rawDisplayValue) ? rawDisplayValue : Number(rawDisplayValue) || 0;
   const selectedCoord = selectedIndex !== null ? coordinates[selectedIndex] : null;
 
   const maxTicks = compact ? 6 : 7;
